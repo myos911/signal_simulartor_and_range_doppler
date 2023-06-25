@@ -124,7 +124,7 @@ class Data:
             max_ = int(1 + np.ceil(float(max) * self.prf)) / self.prf
 
         self.time = np.linspace(min_, max_ - 1 / self.Fs, np.round((max_ - min_) * self.Fs).astype('int'))
-        if (len(self.time)) % np.int(0.5 + self.Fs / self.prf) != 0:
+        if (len(self.time)) % int(0.5 + self.Fs / self.prf) != 0:
             print("ERRORROARRRRRR", (len(self.time)) % int(self.Fs / self.prf))
         return self.time
 
