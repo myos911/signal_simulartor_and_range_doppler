@@ -11,6 +11,7 @@
 # IMPORTS
 # classes
 import os
+import time 
 
 from channel import Channel
 from radar import Radar
@@ -28,6 +29,8 @@ ifplot = True
 
 # creating the radar object
 from sar_design_equations import adjust_prf_to_looking_angle, prf_to_ground_swath
+
+startTime = time.time()
 
 radar = Radar()
 # data object
@@ -194,3 +197,6 @@ if ifplot:
     fig, ax = plt.subplots(1)
     ax.pcolormesh(data.get_fast_time_axis(), data.get_slow_time_axis(), np.abs(outimage).astype(np.float32),
                   shading='auto', cmap=plt.get_cmap('hot'))
+    
+endTime=time.time()
+print("Total time: ", endTime-startTime, " seconds")
