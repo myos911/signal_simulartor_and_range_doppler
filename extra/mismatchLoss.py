@@ -1,5 +1,5 @@
 from linearFM import modified_fresnel
-import numpy as np
+import cupy as np
 
 def chirpSpectrum(f, rate, duration):
     alpha = np.abs(np.pi * rate) # alpha needs to be taken as absolute

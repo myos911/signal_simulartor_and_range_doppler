@@ -1,6 +1,6 @@
 # attempting to simulate bandlimited noise
 # %%
-import numpy as np
+import cupy as np
 
 # bandwidth
 from tqdm import tqdm

@@ -3,7 +3,7 @@ from numba import jit
 from dataMatrix import Data
 import pickle as pk
 import matplotlib.pyplot as plt
-import numpy as np
+import cupy as np
 
 #%% unpickle the data
 from rangeDoppler import r_of_f_r_dopl

@@ -1,12 +1,12 @@
 #  ____________________________Imports_____________________________
 import numba
-import numpy as np
-import scipy.special as sc
+import cupy as np
+import cupyx.scipy.special as sc
 from numba import jit, prange
 from tqdm import tqdm
 #  ____________________________Utilities __________________________
 # fresnel complexIntegral
-from numpy import sign
+from cupy import sign
 
 def modified_fresnel(gamma):
     S, C = sc.fresnel(gamma * np.sqrt(2 / np.pi))
@@ -78,7 +78,7 @@ class Chirp:
 
     def chirp_spectrum(self, v):
         """ calculates the chirp spectrum over the passed frequency vector v
-        :param  v:, frequency numpy ndarray
+        :param  v:, frequency cupy ndarray
         :return:, complex base-banded spectrum
         """
         rate = self.rate
@@ -98,7 +98,7 @@ class Chirp:
 
     def chirp_matched_filter_posp(self, v):
         """ calculates the inverse chirp spectrum using the principle of stationary phase over the passed frequency vector v
-        :param  v:, frequency numpy ndarray
+        :param  v:, frequency cupy ndarray
         :return:, complex base-banded spectrum
         """
         rate = self.rate
@@ -108,7 +108,7 @@ class Chirp:
     def real_chirp(self, t):
         """
         chirp in real notation
-        :param t: time axis, numpy ndarray
+        :param t: time axis, cupy ndarray
         :return: linear fm impulse calculated over t
         """
         fc = self.fc
@@ -119,7 +119,7 @@ class Chirp:
     def baseband_chirp(self, t):
         """
         chirp in base-band notation (not delayed)
-        :param t: time axis, numpy ndarray
+        :param t: time axis, cupy ndarray
         :return: linear fm basebanded impulse calculated over t
         """
         rate = self.rate
@@ -130,7 +130,7 @@ class Chirp:
     def baseband_chirp_delayed(self, t, delay):
         """
         chirp in base-band notation (with delay)
-        :param t: time axis, numpy ndarray
+        :param t: time axis, cupy ndarray
         :return: linear fm basebanded impulse calculated over t
         """
         rate = self.rate

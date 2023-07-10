@@ -1,4 +1,4 @@
-import numpy as np
+import cupy as np
 from matchedFilter import MatchedFilter
 from linearFM import Chirp
 from tqdm import tqdm

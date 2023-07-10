@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
 from numba import prange, jit
-from numpy import fft
+from cupy import fft
 from tqdm import tqdm
 import pickle as pk
 import tracemalloc
@@ -9,7 +9,7 @@ from channel import Channel
 from dataMatrix import Data
 from interpolator_v2 import sphere_interp
 from radar import Radar
-import numpy as np
+import cupy as np
 from utils import meshSph2cart, mesh_lcs_to_gcs, mesh_doppler_to_azimuth, mesh_azimuth_range_to_ground_gcs, \
     mesh_gcs_to_lcs, meshCart2sph
 

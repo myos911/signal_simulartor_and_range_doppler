@@ -19,7 +19,7 @@ from pointTarget import PointTarget
 from dataMatrix import Data
 from rangeDoppler import RangeDopplerCompressor
 # py modules
-import numpy as np
+import cupy as np
 
 # switch for plotting
 ifplot = True

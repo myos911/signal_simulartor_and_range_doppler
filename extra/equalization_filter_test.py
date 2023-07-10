@@ -19,7 +19,7 @@ from pointTarget import PointTarget
 from dataMatrix import Data
 from rangeDoppler import RangeDopplerCompressor
 # py modules
-import numpy as np
+import cupy as np
 
 # %%
 # 0 -  SIMULATOR SETTINGS
@@ -184,7 +184,7 @@ ax.pcolormesh(data.get_fast_time_axis(),data.get_slow_time_axis(),np.abs(outimag
 
 # %%
 # - 5 ANTENNA PATTERN EQUALIZATION
-# create the range-doppler equalization filter hint use scipy interpolate no
+# create the range-doppler equalization filter hint use cupyx.scipy interpolate no
 # load range doppler rcmc-ed filtered data
 # get range and doppler axes
 # generate range-doppler scene weighting pattern

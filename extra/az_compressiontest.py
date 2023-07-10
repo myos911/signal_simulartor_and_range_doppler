@@ -1,9 +1,9 @@
-import numpy as np
+import cupy as np
 import matplotlib.pyplot as plt
 from numba import jit, prange
-from numpy import fft
+from cupy import fft
 from tqdm import tqdm
-import scipy.special as sc
+import cupyx.scipy.special as sc
 import pickle as pk
 from radar import Radar
 from channel import Channel

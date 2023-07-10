@@ -2,7 +2,7 @@
 import os
 import traceback
 
-import numpy as np
+import cupy as np
 import pickle as pk
 from pointTarget import PointTarget
 from linearFM import Chirp

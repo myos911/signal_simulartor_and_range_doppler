@@ -1,5 +1,5 @@
 #  ____________________________imports_____________________________
-import numpy as np
+import cupy as np
 from linearFM import Chirp
 from geometryRadar import RadarGeometry
 from pprint import pprint

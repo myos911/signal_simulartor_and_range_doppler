@@ -4,7 +4,7 @@ import tracemalloc
 from functools import partial
 from threading import Thread
 
-import numpy as np
+import cupy as np
 from numba import njit, jit, prange
 from tqdm import tqdm
 

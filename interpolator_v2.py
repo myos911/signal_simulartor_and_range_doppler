@@ -1,5 +1,5 @@
 import matplotlib.pyplot as plt
-import numpy as np
+import cupy as np
 from numba import prange, jit
 
 

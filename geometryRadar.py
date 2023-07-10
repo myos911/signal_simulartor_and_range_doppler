@@ -1,6 +1,6 @@
 #  ____________________________imports_____________________________
-import numpy as np
-from numpy import cos, sin
+import cupy as np
+from cupy import cos, sin
 
 
 
@@ -90,7 +90,7 @@ class RadarGeometry():
     def get_lcs_of_point(self, point_target, t):
         """
         get the local coordinates of a target in time as seen by the radar antenna
-        :param point_target: numpy array 3-d containing the target gc
+        :param point_target: cupy array 3-d containing the target gc
         :param t: time axis
         :return: 3 by len(t) lcs array
         """
@@ -106,7 +106,7 @@ class RadarGeometry():
     def get_range(self, point_target, t):
         """
         gets relative range between satellite and target in time
-        :param point_target: numpy array of dimention 3 containing the gcs coordinates of the point target
+        :param point_target: cupy array of dimention 3 containing the gcs coordinates of the point target
         :param t:
         :return:
         """

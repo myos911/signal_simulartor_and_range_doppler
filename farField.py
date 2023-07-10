@@ -3,10 +3,10 @@
 
 ##################### DEPENDENCIES ####################
 
-import numpy as np
+import cupy as np
 from numba import jit, prange
-from numpy import cos, exp, sin
-from scipy import integrate
+from cupy import cos, exp, sin
+from cupyx.scipy import integrate
 
 
 ################### NUMBA FUNCTIONS ###################

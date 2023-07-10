@@ -6,7 +6,7 @@
 from extra.radarModel import Radar
 import matplotlib.pyplot as plt
 import matplotlib as mpl
-import numpy as np
+import cupy as np
 
 mpl.use('TkAgg')  # or can use 'TkAgg', whatever you have/prefer
 
@@ -14,7 +14,7 @@ mpl.use('TkAgg')  # or can use 'TkAgg', whatever you have/prefer
 def testRadarCoordinates(a: int, b: int, p0: np.array):
     """ :param a alpha angle rotation on xy plane
         :param b beta angle rotation about trajectory respect to a down looking radar
-        :param p0 numpy array in the form (x,y,z) initial position of the radar
+        :param p0 cupy array in the form (x,y,z) initial position of the radar
     """
     # radar class under test
     radar = Radar()
@@ -71,7 +71,7 @@ def testAntennaProjection(a: int, b: int, p0: np.array):
     be compared to a closed form solution)
     :param a alpha angle rotation on xy plane
     :param b beta angle rotation about trajectory respect to a down looking radar
-    :param p0 numpy array in the form (x,y,z) initial position of the radar
+    :param p0 cupy array in the form (x,y,z) initial position of the radar
     """
     # radar class under test
     radar = Radar()
@@ -121,7 +121,7 @@ def testAntennaProjection(a: int, b: int, p0: np.array):
 def testCoordinatesAndPattern(a: int, b: int, p0: np.array):
     """ :param a alpha angle rotation on xy plane
         :param b beta angle rotation about trajectory respect to a down looking radar
-        :param p0 numpy array in the form (x,y,z) initial position of the radar
+        :param p0 cupy array in the form (x,y,z) initial position of the radar
     """
     # radar class under test
     radar = Radar()
@@ -191,7 +191,7 @@ def testCoordinatesAndPattern(a: int, b: int, p0: np.array):
 def testPatternAutoCentering(a: int, b: int, p0: np.array):
     """ :param a alpha angle rotation on xy plane
         :param b beta angle rotation about trajectory respect to a down looking radar
-        :param p0 numpy array in the form (x,y,z) initial position of the radar
+        :param p0 cupy array in the form (x,y,z) initial position of the radar
     """
     # radar class under test
     radar = Radar()
@@ -248,7 +248,7 @@ def testPatternAutoCentering(a: int, b: int, p0: np.array):
 def pointsOnGroundPattern(a: int, b: int, p0: np.ndarray, radar: Radar) -> np.ndarray:
     """ :param a alpha angle rotation on xy plane
         :param b beta angle rotation about trajectory respect to a down looking radar
-        :param p0 numpy array in the form (x,y,z) initial position of the radar
+        :param p0 cupy array in the form (x,y,z) initial position of the radar
         :param radar, it's a Radar
     """
     tx = radar.antenna.lamda / (2 * radar.antenna.L)
@@ -270,7 +270,7 @@ def pointsOnGroundPattern(a: int, b: int, p0: np.ndarray, radar: Radar) -> np.nd
 def theoreticalRangeGain(a: int, b: int, p0: np.ndarray, radar: Radar, P: np.ndarray):
     """ :param a alpha angle rotation on xy plane
         :param b beta angle rotation about trajectory respect to a down looking radar
-        :param p0 numpy array in the form (x,y,z) initial position of the radar
+        :param p0 cupy array in the form (x,y,z) initial position of the radar
         :param radar, it's a Radar
         :param P point on ground to test
     """
@@ -307,7 +307,7 @@ def testRangeGain(a: int, b: int, p0: np.array, P):
     """ tests the range gain method of the radar class (to be compared with closed form solution)
         :param a alpha angle rotation on xy plane
         :param b beta angle rotation about trajectory respect to a down looking radar
-        :param p0 numpy array in the form (x,y,z) initial position of the radar
+        :param p0 cupy array in the form (x,y,z) initial position of the radar
         :param P point under test on ground np array in the form [x,y,z]
     """
     # radar class under test

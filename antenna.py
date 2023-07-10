@@ -1,5 +1,5 @@
 #  ____________________________imports_____________________________
-import numpy as np
+import cupy as np
 from numba import jit, prange
 import os
 import pickle as pk
@@ -331,7 +331,7 @@ class Antenna:
 
     def get_Gain(self, theta_phi):
         """
-        Parameters: thetaPhi numpy array in the form of [theta,phi]
+        Parameters: thetaPhi cupy array in the form of [theta,phi]
         Return: gain at given solid angle coordinates (local reference system)
         """
         #return self.idealGain(theta_phi)

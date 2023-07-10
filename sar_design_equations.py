@@ -2,7 +2,7 @@
 
 
 from geometryRadar import RadarGeometry
-import numpy as np
+import cupy as np
 
 
 def adjust_looking_angle_to_prf(radar_geometry: RadarGeometry, prf, c=299792458, fraction=1 / 2):

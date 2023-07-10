@@ -1,12 +1,12 @@
 #  ____________________________imports_____________________________
-import numpy as np
+import cupy as np
 from linearFM import Chirp      # chirp class
 
 #  ____________________________utilities __________________________
 
 # polar to rectangular
 def sph2cart(P) -> np.ndarray:
-    """ Convert a numpy array in the form [r,theta,phi] to a numpy array in the form [x,y,z]
+    """ Convert a cupy array in the form [r,theta,phi] to a cupy array in the form [x,y,z]
   """
     r, theta, phi = 0, 1, 2
     x = P[r] * np.sin(P[theta]) * np.cos(P[phi])
@@ -17,7 +17,7 @@ def sph2cart(P) -> np.ndarray:
 
 # rectangular to polar
 def cart2sph(P) -> np.ndarray:
-    """ Convert a numpy array in the form [x,y,z] to a numpy array in the form [r,theta,phi]
+    """ Convert a cupy array in the form [x,y,z] to a cupy array in the form [r,theta,phi]
   """
     x, y, z = 0, 1, 2
     r = np.sqrt(np.dot(P, P))
@@ -61,7 +61,7 @@ class Antenna:
 
     def getGain(self, theta_phi):
         """
-        Parameters: thetaPhi numpy array in the form of [theta,phi]
+        Parameters: thetaPhi cupy array in the form of [theta,phi]
 
         Return: gain at given solid angle coordiantes (local reference system)
         """
@@ -121,7 +121,7 @@ class Radar:
 
     def getBroadsideOnGround(self) -> np.ndarray:
         """ get the antenna broadside projection position on ground
-        :return p_bsg position of the broadside projection on ground as numpy array in the form [x, y, 0] for each point in time
+        :return p_bsg position of the broadside projection on ground as cupy array in the form [x, y, 0] for each point in time
         """
         r = -self.pos[:,2]/self.Bc2s[2][2] # distance from satellite to bs on ground projection
         # allocation of p_bsg vector
@@ -134,9 +134,9 @@ class Radar:
     def rangeGain(self, P):
         """ returns range, gain respect to time for a point scatterer at a given position
 
-            :parameter P numpy array in the form [x,y,z]
+            :parameter P cupy array in the form [x,y,z]
 
-            :returns (Range, Gain) numpy arrays showing range and antenna gain relative to the target in time
+            :returns (Range, Gain) cupy arrays showing range and antenna gain relative to the target in time
         """
         # local cartesian reference
         P_i = P - self.pos  # offset

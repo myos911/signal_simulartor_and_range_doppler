@@ -1,6 +1,6 @@
 #  ____________________________Imports_____________________________
 from linearFM import Chirp
-import numpy as np
+import cupy as np
 
 
 

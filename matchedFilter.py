@@ -1,7 +1,7 @@
 #  ____________________________Imports_____________________________
-import numpy as np
-import scipy.special as sc
-from scipy import integrate
+import cupy as np
+import cupyx.scipy.special as sc
+from cupyx.scipy import integrate
 from linearFM import Chirp
 from tqdm import tqdm
 from dataMatrix import Data

@@ -1,5 +1,5 @@
 ##  ____________________________imports_____________________________
-import numpy as np
+import cupy as np
 
 ## ____________________________functions_____________________________
 # polar to rectangular
@@ -8,7 +8,7 @@ from numba import jit, prange
 
 @jit(nopython = True)
 def sph2cart(P: np.ndarray) -> np.ndarray:
-    """ Convert a numpy array in the form [r,theta,phi] to a numpy array in the form [x,y,z]
+    """ Convert a cupy array in the form [r,theta,phi] to a cupy array in the form [x,y,z]
   """
     r, theta, phi = 0, 1, 2
     x = P[r] * np.sin(P[theta]) * np.cos(P[phi])
@@ -20,7 +20,7 @@ def sph2cart(P: np.ndarray) -> np.ndarray:
 # rectangular to polar
 @jit(nopython = True)
 def cart2sph(P:np.ndarray) -> np.ndarray:
-    """ Convert a numpy array in the form [x,y,z] to a numpy array in the form [r,theta,phi]
+    """ Convert a cupy array in the form [x,y,z] to a cupy array in the form [r,theta,phi]
     """
     x, y, z = 0, 1, 2
     #r = np.linalg.norm(P)
