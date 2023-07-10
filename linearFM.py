@@ -1,7 +1,7 @@
 #  ____________________________Imports_____________________________
 import numba
 import cupy as np
-import cupyx.scipy.special as sc
+import scipy.special as sc
 from numba import jit, prange
 from tqdm import tqdm
 #  ____________________________Utilities __________________________

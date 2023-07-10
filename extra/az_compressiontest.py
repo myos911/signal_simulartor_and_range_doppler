@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 from numba import jit, prange
 from cupy import fft
 from tqdm import tqdm
-import cupyx.scipy.special as sc
+import scipy.special as sc
 import pickle as pk
 from radar import Radar
 from channel import Channel

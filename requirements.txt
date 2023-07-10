@@ -2,4 +2,4 @@ cupy
 matplotlib
 numba
 tqdm
-cupyx.scipy
+scipy

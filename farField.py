@@ -6,7 +6,7 @@
 import cupy as np
 from numba import jit, prange
 from cupy import cos, exp, sin
-from cupyx.scipy import integrate
+from scipy import integrate
 
 
 ################### NUMBA FUNCTIONS ###################

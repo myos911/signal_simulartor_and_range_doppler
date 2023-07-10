@@ -1,7 +1,7 @@
 import cupy as np
 import matplotlib.pyplot as plt
 import matplotlib
-import cupyx.scipy.special as sc
+import scipy.special as sc
 
 #matplotlib.use('TkAgg')
 
