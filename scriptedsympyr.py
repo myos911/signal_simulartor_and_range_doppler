@@ -12,7 +12,7 @@
 # classes
 import os
 import time 
-
+import cProfile, pstats
 from channel import Channel
 from radar import Radar
 from pointTarget import PointTarget
@@ -185,6 +185,10 @@ with open('./Simulation_Data/data_dump.pk', 'wb') as handle:
 # - 4 RANGE DOPPLER COMPRESSION
 # compress the signal imposing a finite doppler bandwidth
 # create a range Doppler instance
+
+profiler = cProfile.Profile()
+profiler.enable()
+
 rangedop = RangeDopplerCompressor(channel, data)
 # compress the image
 outimage = rangedop.azimuth_compression(doppler_bandwidth=doppler_bandwidth, patternequ=False)
@@ -197,6 +201,7 @@ if ifplot:
     fig, ax = plt.subplots(1)
     ax.pcolormesh(data.get_fast_time_axis(), data.get_slow_time_axis(), np.abs(outimage).astype(np.float32),
                   shading='auto', cmap=plt.get_cmap('hot'))
-    
+profiler.disable()
+stats = pstats.Stats(profiler).sort_stats('tottime').print_stats(30)
 endTime=time.time()
 print("Total time: ", endTime-startTime, " seconds")
