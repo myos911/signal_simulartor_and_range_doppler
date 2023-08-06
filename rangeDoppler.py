@@ -87,11 +87,12 @@ def az_filter_matrix(filter_matrix, t_range_axis, speed, lamb_c, B, prf, doppler
 
 
 # frequency range wak including the doppler error in the impulse compression peak point
-@jit(nopython=True)
-def r_of_f_r_dopl(f, rc, v, lam_c, c, K):
-    vts = (f ** 2 * rc ** 2) / (4 * v ** 2 / lam_c ** 2 - f ** 2)
-    r = np.sqrt(rc ** 2 + vts) - f * c / (2 * K)
-    return r
+# moved to inline
+# @jit(nopython=True)
+# def r_of_f_r_dopl(f, rc, v, lam_c, c, K):
+#     vts = (f ** 2 * rc ** 2) / (4 * v ** 2 / lam_c ** 2 - f ** 2)
+#     r = np.sqrt(rc ** 2 + vts) - f * c / (2 * K)
+#     return r
 
 
 # range cell migration compensation
@@ -120,7 +121,8 @@ def rcmc(range_doppler_matrix, range_doppler_matrix_rcmc, t_range_axis, Fs, prf,
         # for every line of the range doppler image
         for ll in range(len(range_doppler_matrix[:, 0])):
             # the range migration is
-            rm = r_of_f_r_dopl(doppler_axis[ll], r_bin, v_sat, lamb_c, cc, rate)
+            vts = (doppler_axis[ll] ** 2 * r_bin ** 2) / (4 * v_sat ** 2 / lamb_c ** 2 - doppler_axis[ll] ** 2)
+            rm = np.sqrt(r_bin ** 2 + vts) - doppler_axis[ll] * cc / (2 * rate)
             # the associated delay in fast time is
             tm = (2 * rm / cc) % (1 / prf)
             # the closest fast time bin is
