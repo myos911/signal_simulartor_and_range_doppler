@@ -18,6 +18,8 @@ from radar import Radar
 from pointTarget import PointTarget
 from dataMatrix import Data
 from rangeDoppler import RangeDopplerCompressor
+import pickle as pk
+
 # py modules
 import numpy as np
 
@@ -31,12 +33,14 @@ ifplot = True
 from sar_design_equations import adjust_prf_to_looking_angle, prf_to_ground_swath
 
 startTime = time.time()
+# when set to true, the input data is read from a file
+# otherwise it is generated
+readInputFromFile = True
 
 radar = Radar()
 # data object
 data = Data()
 # channel
-channel = Channel(radar)
 # signal Bandwidth
 bw = 2E6  # Hz (reduced for tests)
 # oversampling factor
@@ -107,13 +111,13 @@ fa_g = np.tan(theta_azimuth / 2) * radar.geometry.S_0[2] / np.cos(-radar.geometr
 # the doppler extension at mid-swath is:
 # from the mid-swath integration time
 integration_time = np.tan(np.arcsin(wave_l / antenna_L)) * radar.geometry.S_0[2] / \
-                   (np.cos(radar.geometry.side_looking_angle) * radar.geometry.abs_v)
+                (np.cos(radar.geometry.side_looking_angle) * radar.geometry.abs_v)
 it = - integration_time / 2
 # 3-db beamwidth Doppler bandwidth:
 doppler_bandwidth = float(
     2 * (-2) * radar.geometry.abs_v ** 2 * it / \
     (wave_l * np.sqrt(radar.geometry.abs_v ** 2 * it ** 2 + \
-                      (radar.geometry.S_0[2] / np.cos(radar.geometry.side_looking_angle)) ** 2))
+                    (radar.geometry.S_0[2] / np.cos(radar.geometry.side_looking_angle)) ** 2))
 )
 print(" The estimated adequate doppler bandwidth is: ", doppler_bandwidth, "Hz")
 
@@ -131,55 +135,60 @@ print(" The PRF alligned to the sampling frequency is: ", radar_prf, "Hz")
 if radar.pulse.duration > 1 / radar_prf:
     print("ERRORRRRRRRR impulse too long")
 
-# %%
-# 2 - TARGET PLACEMENT
-tnum = 1
-swath, pippo, pluto = prf_to_ground_swath(channel.radar.geometry, channel.radar.prf)
-# tspacing = swath / (tnum + 0.1)
-# target assigned index
-target_id = 0
-# target object
-target = PointTarget(index=target_id)
-# TEST: place the target at ground broadside
-broadside_g = radar.geometry.get_broadside_on_ground()
-target.set_position_gcs(broadside_g[0], broadside_g[1], 0)
-print('target info')
-print(target.__dict__)
-# add target to the simulation
-channel.add_target(target)
-# for tt in range(tnum):
-#     # target assigned index
-#     target_id = tt
-#     # target object
-#     target = PointTarget(index=target_id)
-#     # TEST: place the target at ground broadside
-#     broadside_g = radar.geometry.get_broadside_on_ground()
-#     target.set_position_gcs(broadside_g[0], broadside_g[1] + tspacing * (-int(tnum / 2) + tt), 0)
-#     # target.set_position_gcs(broadside_g[0], broadside_g[1], 0)
-#     # add target to the simulation
-#     channel.add_target(target)
+channel = Channel(radar)
+if(readInputFromFile):
+    print("Reading input from file!")
+    with open('./Simulation_Data/data_dump.pk', 'rb') as handle:
+        data = pk.load(handle)
+        handle.close()
+else:
 
-# %%
-# - 3 SIMULATION and pickling
-# use cubic interpolation for antenna pattern, or not
-radar.antenna.cubic = False  # if the default antenna pattern is used, a linear interpolator works best
-t_minmax = .5
-channel.raw_signal_generator(data, -t_minmax, t_minmax, osf=osf)
-# applying the compression filter to the simulated signal
-channel.filter_raw_signal(data)
+    # %%
+    # 2 - TARGET PLACEMENT
+    tnum = 1
+    swath, pippo, pluto = prf_to_ground_swath(channel.radar.geometry, channel.radar.prf)
+    # tspacing = swath / (tnum + 0.1)
+    # target assigned index
+    target_id = 0
+    # target object
+    target = PointTarget(index=target_id)
+    # TEST: place the target at ground broadside
+    broadside_g = radar.geometry.get_broadside_on_ground()
+    target.set_position_gcs(broadside_g[0], broadside_g[1], 0)
+    print('target info')
+    print(target.__dict__)
+    # add target to the simulation
+    channel.add_target(target)
+    # for tt in range(tnum):
+    #     # target assigned index
+    #     target_id = tt
+    #     # target object
+    #     target = PointTarget(index=target_id)
+    #     # TEST: place the target at ground broadside
+    #     broadside_g = radar.geometry.get_broadside_on_ground()
+    #     target.set_position_gcs(broadside_g[0], broadside_g[1] + tspacing * (-int(tnum / 2) + tt), 0)
+    #     # target.set_position_gcs(broadside_g[0], broadside_g[1], 0)
+    #     # add target to the simulation
+    #     channel.add_target(target)
 
-# %% store the simulation data for further processing
-import pickle as pk
+    # %%
+    # - 3 SIMULATION and pickling
+    # use cubic interpolation for antenna pattern, or not
+    radar.antenna.cubic = False  # if the default antenna pattern is used, a linear interpolator works best
+    t_minmax = .5
+    channel.raw_signal_generator(data, -t_minmax, t_minmax, osf=osf)
 
-print('pickling')
-filename = './Simulation_Data/channel_dump.pk'
-os.makedirs(os.path.dirname(filename), exist_ok=True)
-with open('./Simulation_Data/channel_dump.pk', 'wb') as handle:
-    pk.dump(channel, handle)
-    handle.close()
-with open('./Simulation_Data/data_dump.pk', 'wb') as handle:
-    pk.dump(data, handle)
-    handle.close()
+    # %% store the simulation data for further processing
+
+    print('pickling')
+    filename = './Simulation_Data/channel_dump.pk'
+    os.makedirs(os.path.dirname(filename), exist_ok=True)
+    with open('./Simulation_Data/channel_dump.pk', 'wb') as handle:
+        pk.dump(channel, handle)
+        handle.close()
+    with open('./Simulation_Data/data_dump.pk', 'wb') as handle:
+        pk.dump(data, handle)
+        handle.close()
 
 # %%
 # - 4 RANGE DOPPLER COMPRESSION
@@ -188,7 +197,9 @@ with open('./Simulation_Data/data_dump.pk', 'wb') as handle:
 
 profiler = cProfile.Profile()
 profiler.enable()
-
+# applying the compression filter to the simulated signal
+# moved from step 3 to step 4
+channel.filter_raw_signal(data)
 rangedop = RangeDopplerCompressor(channel, data)
 # compress the image
 outimage = rangedop.azimuth_compression(doppler_bandwidth=doppler_bandwidth, patternequ=False)
