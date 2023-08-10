@@ -1,9 +1,10 @@
 import matplotlib.pyplot as plt
-from numba import prange, jit
+from numba import prange, jit, cuda, prange
 from numpy import fft
 from tqdm import tqdm
 import pickle as pk
 import tracemalloc
+import math
 
 from channel import Channel
 from dataMatrix import Data
@@ -93,6 +94,50 @@ def az_filter_matrix(filter_matrix, t_range_axis, speed, lamb_c, B, prf, doppler
 #     vts = (f ** 2 * rc ** 2) / (4 * v ** 2 / lam_c ** 2 - f ** 2)
 #     r = np.sqrt(rc ** 2 + vts) - f * c / (2 * K)
 #     return r
+
+@cuda.jit
+def rcmc_cuda(range_doppler_matrix, range_doppler_matrix_rcmc, t_range_axis, Fs, prf, v_sat, cc, lamb_c, rate, doppler_centroid):
+    # Get the thread index
+    rr, ll = cuda.grid(2)
+    # Get the total number of range bins and lines
+    tot_bins = range_doppler_matrix.shape[1]
+    tot_lines = range_doppler_matrix.shape[0]
+    
+    # Check if the thread index is within the range
+    if rr < tot_bins and ll < tot_lines:
+        # range reference
+        r_bin = t_range_axis[rr]
+        # the doppler axis
+        doppler_axis = (ll - tot_lines // 2) * prf / tot_lines
+        # the doppler offset
+        foffset = math.ceil(doppler_centroid / prf) * prf
+        doppler_axis += foffset
+        # wrapped around freq axis
+        if doppler_axis > doppler_centroid + prf / 2:
+            doppler_axis -= prf
+        if doppler_axis < doppler_centroid - prf / 2:
+            doppler_axis += prf
+        # the range migration is
+        vts = (doppler_axis ** 2 * r_bin ** 2) / (4 * v_sat ** 2 / lamb_c ** 2 - doppler_axis ** 2)
+        rm = math.sqrt(r_bin ** 2 + vts) - doppler_axis * cc / (2 * rate)
+        # the associated delay in fast time is
+        tm = (2 * rm / cc) % (1 / prf)
+        # the closest fast time bin is
+        t_idx = math.ceil(tm * Fs)
+        # the interpolation will be performed using n bins
+        n_interp = 128
+        point_r = 0
+        point_i = 0
+        # performing the interpolation
+        for n in range(int(-n_interp / 2), int(n_interp / 2)):
+            # the fast time bin to include in the interpolation is
+            t_n = int((t_idx + n) % tot_bins)
+            # the sum argument for the interpolation is then:
+            point_r += range_doppler_matrix[ll, t_n].real * math.sin(math.pi * Fs * (tm - t_n / Fs)) / (
+                    math.pi * Fs * (tm - t_n / Fs))
+            point_i += range_doppler_matrix[ll, t_n].imag * math.sin(math.pi * Fs * (tm - t_n / Fs)) / (
+                    math.pi * Fs * (tm - t_n / Fs))
+        range_doppler_matrix_rcmc[ll, rr] = point_r + 1j * point_i
 
 
 # range cell migration compensation
@@ -316,8 +361,15 @@ class RangeDopplerCompressor:
         :param doppler_range_compressed_matrix: matrix containing range compressed data in the azimuth frequency domain
         :return: rcmc'ed martrix
         """
+
+        # Set the CUDA kernel configuration
+        threads_per_block = (32, 32)
+        blocks_per_grid_x = int(np.ceil(doppler_range_compressed_matrix.shape[1] / threads_per_block[0]))
+        blocks_per_grid_y = int(np.ceil(doppler_range_compressed_matrix.shape[0] / threads_per_block[1]))
+        blocks_per_grid = (blocks_per_grid_x, blocks_per_grid_y)
+
         matrix_rcmc = 1j * np.zeros((self.data.rows_num, self.data.columns_num))
-        matrix_rcmc = rcmc(doppler_range_compressed_matrix,
+        rcmc_cuda[blocks_per_grid, threads_per_block](doppler_range_compressed_matrix,
                            matrix_rcmc,
                            self.get_true_range_axis(),
                            self.Fs,
