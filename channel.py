@@ -5,6 +5,7 @@ from functools import partial
 from threading import Thread
 
 import numpy as np
+import cupy as cp
 from numba import njit, jit, prange
 from tqdm import tqdm
 
@@ -263,6 +264,7 @@ class Channel:
     #     return t, x_rx
 
     def filter_raw_signal(self, data: Data):
+        gpu_data = cp.asarray(data.data)
         """
         perform time matched filtering
         :param data:
@@ -272,8 +274,14 @@ class Channel:
         filter = MatchedFilter(self.radar.pulse)
         # filter signal
         print("Performing matched filter fast convolution")
+    
         # the maximum segment size is set to be 2^22
-        compdata, spec = filter.fast_convolution_segmented(data.data, data.Fs, int(2 ** 24))
+        compdata, spec = filter.fast_convolution_segmented_gpu(gpu_data, data.Fs, int(2 ** 24))
+        
+        #back to cpu
+        compdata = cp.asnumpy(compdata)
+
+
         # the returned spectrum spec has no significance here (is the spectrum of the last segment processed)
         # store range compressed signal
         data.set_range_compressed_data(compdata)

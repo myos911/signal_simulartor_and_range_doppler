@@ -1,5 +1,6 @@
 #  ____________________________Imports_____________________________
 import numpy as np
+import cupy as cp
 import scipy.special as sc
 from scipy import integrate
 from linearFM import Chirp
@@ -35,6 +36,29 @@ class MatchedFilter:
         # if wanted the bandwidth could be different than the pulse one (at the expense of some performances)
         self.bandwidth = pulse.get_bandwidth()
 
+
+    def fast_convolution_gpu(self, x, sampling_freq):
+        """
+        ifft( fft(x) * H(f) ) a circular convolution
+        :param x signal to process
+        :param sampling_freq sampling frequency of x
+        :return filtered signal
+        """
+        # frequency axis creation
+        f = cp.linspace(-sampling_freq / 2, sampling_freq / 2 - sampling_freq / len(x), len(x))
+        # TRUE SPECTRUM IMPLEMENTATION
+        # transfer_function = 1 / self.pulse.chirp_spectrum(f) * cp.where(cp.abs(f) <= self.pulse.get_bandwidth() / 2, 1, 0)
+        # transfer_function = cp.fft.ifftshift(transfer_function)
+        spectrum = cp.fft.fft(cp.fft.ifftshift(x)) / sampling_freq  # normalization #todo check if ifftshift is the correct one
+        # spectrum *= transfer_function
+        # POSP IMPLEMENTATION
+        spectrum *= cp.fft.ifftshift(self.pulse.chirp_matched_filter_posp(f))
+        spectrum *= cp.fft.ifftshift(cp.where(cp.abs(f) <= self.pulse.get_bandwidth() / 2, 1, 0))
+        convolved_signal = cp.fft.ifft(spectrum)  * sampling_freq   # denormalization
+        return cp.fft.fftshift(convolved_signal), spectrum
+
+
+
     def fast_convolution(self, x, sampling_freq):
         """
         ifft( fft(x) * H(f) ) a circular convolution
@@ -45,15 +69,18 @@ class MatchedFilter:
         # frequency axis creation
         f = np.linspace(-sampling_freq / 2, sampling_freq / 2 - sampling_freq / len(x), len(x))
         # TRUE SPECTRUM IMPLEMENTATION
-        transfer_function = 1 / self.pulse.chirp_spectrum(f) * np.where(np.abs(f) <= self.pulse.get_bandwidth() / 2, 1, 0)
-        transfer_function = np.fft.ifftshift(transfer_function)
+        # transfer_function = 1 / self.pulse.chirp_spectrum(f) * np.where(np.abs(f) <= self.pulse.get_bandwidth() / 2, 1, 0)
+        # transfer_function = np.fft.ifftshift(transfer_function)
         spectrum = np.fft.fft(np.fft.ifftshift(x)) / sampling_freq  # normalization #todo check if ifftshift is the correct one
-        spectrum *= transfer_function
+        # spectrum *= transfer_function
         # POSP IMPLEMENTATION
-        #spectrum *= np.fft.ifftshift(self.pulse.chirp_matched_filter_posp(f))
-        #spectrum *= np.fft.ifftshift(np.where(np.abs(f) <= self.pulse.get_bandwidth() / 2, 1, 0))
+        spectrum *= np.fft.ifftshift(self.pulse.chirp_matched_filter_posp(f))
+        spectrum *= np.fft.ifftshift(np.where(np.abs(f) <= self.pulse.get_bandwidth() / 2, 1, 0))
         convolved_signal = np.fft.ifft(spectrum)  * sampling_freq   # denormalization
         return np.fft.fftshift(convolved_signal), spectrum
+
+
+        
 
     def zero_padded_fast_convolution(self, x, sampling_freq, alias_level):
         """
@@ -73,6 +100,47 @@ class MatchedFilter:
         pad_y, spectra = self.fast_convolution(pad_x, sampling_freq)
         y = pad_y[len(padding_sequence):len(padding_sequence) + len(x)]
         return y, spectra
+
+    def fast_convolution_segmented_gpu(self, x, sampling_freq, segment_sample_size):
+        """
+        convolution in blocks
+        :param x:
+        :param sampling_freq:
+        :param segment_sample_size:
+        :return:
+        """
+        alias_level = 0.0001
+        # number of zero taps actually double of what is needed to achieve alias_level
+        delta_zero = 1 / (alias_level * cp.pi * self.pulse.get_bandwidth())
+        # delta_zero = 10
+        padding_sequence = 1j * cp.zeros(int(delta_zero * sampling_freq + 1))
+        # array size
+        tot_size = len(x)
+        # number of segments
+        seg_num = cp.ceil(tot_size/segment_sample_size).astype('int')
+        # output initialization
+        y = cp.zeros_like(x)
+        # block processing
+        print("segmented matched filtering progress:")
+        for i in tqdm(range(int(seg_num))):
+            # current segment
+            x_i = x[int(i * segment_sample_size): int( min(tot_size, segment_sample_size * (i+1)))]
+            # pad
+            pad_x_i = cp.concatenate((padding_sequence, x_i, padding_sequence))
+            # convolve
+            pad_y, spectra = self.fast_convolution_gpu(pad_x_i, sampling_freq)
+            # min index in output vector
+            min_idx = max(0, i * segment_sample_size - len(padding_sequence))
+            # max index in output vector
+            max_idx = min(tot_size, i * segment_sample_size + len(padding_sequence) + len(x_i))
+            # min index in segment vector
+            min_idx_i = max(0, len(padding_sequence) - i * segment_sample_size)
+            # max index in segment vector
+            max_idx_i = min(len(pad_x_i), min_idx_i + (max_idx-min_idx))
+            # overlapp and add
+            y[int(min_idx): int(max_idx)] += pad_y[int(min_idx_i): int(max_idx_i)]
+            # TODO test this
+        return y, cp.zeros_like(y)
 
     def fast_convolution_segmented(self, x, sampling_freq, segment_sample_size):
         """

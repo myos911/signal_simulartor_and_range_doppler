@@ -1,6 +1,7 @@
 #  ____________________________Imports_____________________________
 import numba
 import numpy as np
+import cupy as cp
 import scipy.special as sc
 from numba import jit, prange
 from tqdm import tqdm
@@ -102,7 +103,7 @@ class Chirp:
         :return:, complex base-banded spectrum
         """
         rate = self.rate
-        H = np.exp(-1j * np.pi / 4) * np.exp(1j * np.pi * v**2 / rate)
+        H = cp.exp(-1j * cp.pi / 4) * cp.exp(1j * cp.pi * v**2 / rate)
         return H
 
     def real_chirp(self, t):

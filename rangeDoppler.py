@@ -88,12 +88,12 @@ def az_filter_matrix(filter_matrix, t_range_axis, speed, lamb_c, B, prf, doppler
 
 
 # frequency range wak including the doppler error in the impulse compression peak point
-# moved to inline
-# @jit(nopython=True)
-# def r_of_f_r_dopl(f, rc, v, lam_c, c, K):
-#     vts = (f ** 2 * rc ** 2) / (4 * v ** 2 / lam_c ** 2 - f ** 2)
-#     r = np.sqrt(rc ** 2 + vts) - f * c / (2 * K)
-#     return r
+# moved to inline, but needed for graphing
+@jit(nopython=True)
+def r_of_f_r_dopl(f, rc, v, lam_c, c, K):
+    vts = (f ** 2 * rc ** 2) / (4 * v ** 2 / lam_c ** 2 - f ** 2)
+    r = np.sqrt(rc ** 2 + vts) - f * c / (2 * K)
+    return r
 
 @cuda.jit
 def rcmc_cuda(range_doppler_matrix, range_doppler_matrix_rcmc, t_range_axis, Fs, prf, v_sat, cc, lamb_c, rate, doppler_centroid):
@@ -362,6 +362,8 @@ class RangeDopplerCompressor:
         :return: rcmc'ed martrix
         """
 
+
+        # # CUDA IMPLEMENTATION
         # Set the CUDA kernel configuration
         threads_per_block = (32, 32)
         blocks_per_grid_x = int(np.ceil(doppler_range_compressed_matrix.shape[1] / threads_per_block[0]))
@@ -379,6 +381,20 @@ class RangeDopplerCompressor:
                            self.c / self.radar.fc,
                            self.radar.pulse.rate,
                            self.doppler_centroid)
+
+
+        # # NON CUDA IMPLEMENTATION
+        # matrix_rcmc = 1j * np.zeros((self.data.rows_num, self.data.columns_num))
+        # matrix_rcmc = rcmc(doppler_range_compressed_matrix,
+        #                    matrix_rcmc,
+        #                    self.get_true_range_axis(),
+        #                    self.Fs,
+        #                    self.radar.prf,
+        #                    self.radar.geometry.abs_v,
+        #                    self.c,
+        #                    self.c / self.radar.fc,
+        #                    self.radar.pulse.rate,
+        #                    self.doppler_centroid)
         return matrix_rcmc
 
     def pattern_equalization(self, range_doppler_reconstructed_matrix):
