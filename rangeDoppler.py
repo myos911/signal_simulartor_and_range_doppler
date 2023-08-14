@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 from numba import prange, jit, cuda, prange
+import numba
 from tqdm import tqdm
 import pickle as pk
 import tracemalloc
@@ -87,6 +88,69 @@ def az_filter_matrix(filter_matrix, t_range_axis, speed, lamb_c, B, prf, doppler
         # that's a column of the matrix
         filter_matrix[:, rr] = G
     return doppler_axis, filter_matrix
+
+
+@cuda.jit
+def az_filter_matrix_cuda(filter_matrix, t_range_axis, speed, lamb_c, B, prf, doppler_centroid, linearfmapprox):
+    # Get the thread index
+    rr = cuda.grid(1)
+    # Get the total number of range bins
+    tot_bins = filter_matrix.shape[1]
+    # Check if the thread index is within the range
+    if rr < tot_bins:
+        if len(filter_matrix[:, 0]) % 2 == 0:
+            # this is only valid if we have an even number of samples
+            doppler_axis = cuda.local.array(shape=(128,), dtype=numba.float32)
+            for i in range(128):
+                doppler_axis[i] = -prf / 2 + (1 - 1 / len(filter_matrix[:, 0])) * prf / 2 * i / 127
+        else:
+            # this is for the case we have a odd number of samples (always)
+            doppler_axis = cuda.local.array(shape=(129,), dtype=numba.float32)
+            for i in range(129):
+                doppler_axis[i] = -prf / 2 + prf / 2 * i / 128
+
+        # this tells us which replica of the spectrum we are looking at
+        foffset = math.ceil(doppler_centroid / prf) * prf
+        # print("foffset in filter matrix", foffset)
+        # this centers the axis on the correct replica
+        for i in range(len(doppler_axis)):
+            doppler_axis[i] += foffset
+        # this wraps around the freq axis to make sure we are filtering the power from the correct replica even if the
+        # doppler centroid is not perfectly centered in the axis
+        for i in range(len(doppler_axis)):
+            if doppler_axis[i] > doppler_centroid + prf / 2:
+                doppler_axis[i] -= prf
+            if doppler_axis[i] < doppler_centroid - prf / 2:
+                doppler_axis[i] += prf
+        # wrapped around range axis and fast time
+        c = 299792458  # m/s
+        f_range_axis = cuda.local.array(shape=(128,), dtype=numba.float32)
+        for i in range(128):
+            f_range_axis[i] = t_range_axis[rr] % (c / (2 * prf))
+        # the range is
+        rng = t_range_axis[rr]
+        # false range
+        frng = f_range_axis[0]
+        Ka = - 2 / lamb_c * speed ** 2 / rng
+        if linearfmapprox == True:
+  
+            G = cuda.local.array(shape=(129,), dtype=numba.complex64)
+            for i in range(len(doppler_axis)):
+                G[i] = math.sqrt(abs(Ka)) * math.exp(-1j * math.pi / 4) \
+                    * math.exp(1j * math.pi * doppler_axis[i] ** 2 / Ka) \
+                    * math.exp(1j * + 4 * math.pi * frng * doppler_axis[i] / c)
+        else:
+
+            # -> filter without amplitude normalization ( with range bin phase removal)
+            G = cuda.local.array(shape=(129,), dtype=numba.complex64)
+            for i in range(len(doppler_axis)):
+                G[i] = math.sqrt(abs(Ka)) * math.exp(1j * (4 * math.pi * rng / lamb_c *                                         # range bin center phase
+                                 math.sqrt(1 - lamb_c ** 2 * doppler_axis[i] ** 2 / (4 * speed ** 2))    # doppler shift phase removal
+                                 - math.pi / 4                                                        # constant phase
+                                 - 4 * math.pi * frng * doppler_axis[i] / c))                            # residual inter-pulse doppler shift removal
+        # that's a column of the matrix
+        for i in range(len(doppler_axis)):
+            filter_matrix[i, rr] = G[i]
 
 
 # frequency range wak including the doppler error in the impulse compression peak point
