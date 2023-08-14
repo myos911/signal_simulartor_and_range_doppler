@@ -10,27 +10,26 @@ from numba import njit, jit, prange
 from tqdm import tqdm
 
 from dataMatrix import Data
+from dataMatrixGPU import DataGPU
 from matchedFilter import MatchedFilter
 from pointTarget import PointTarget, TargetData
 from radar import Radar
 from utils import sph2cart, cart2sph
-
+from channel import Channel
+from radarGPU import RadarGPU
 
 # ___________________________________________ Classes ______________________________________________
 
-class Channel:
-    def __init__(self, radar: Radar):
-        """
-        Class containing both the radar and the targets.
-        it provides methods to generate the raw signal back-scattered from the point targets
-        according to the radar parameters.
-        It must be interfaced with a Data class instance to get the time axis and save the simulation outputs.
-        :param radar: Radar object to be used for the simulation
-        """
-        self.radar = radar  # radar object
-        self.target = []  # empty list of targets
-        self.targets_cnt = 0  # number of targets in the list
-        self.c = 299792458.0  # m/s speed of light in the medium (changing this allows for accounting different
+class ChannelGPU:
+    def __init__(self, channel_cpu: Channel):
+        
+        # First, copy the radar over to the GPU
+        radarGPU = RadarGPU(channel_cpu.radar)
+
+        self.radar = radarGPU   # radar object
+        self.target = channel_cpu.target  # empty list of targets
+        self.targets_cnt = channel_cpu.targets_cnt  # number of targets in the list
+        self.c = channel_cpu.c  # m/s speed of light in the medium (changing this allows for accounting different
         # propagation media or mechanisms e.g. mechanical waves)
 
     def add_target(self, target: PointTarget):
@@ -263,7 +262,7 @@ class Channel:
     #     # return time ax and raw signal
     #     return t, x_rx
 
-    def filter_raw_signal(self, data: Data):
+    def filter_raw_signal(self, data: DataGPU):
         
         """
         perform time matched filtering

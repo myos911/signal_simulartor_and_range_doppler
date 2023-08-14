@@ -14,14 +14,19 @@ import os
 import time 
 import cProfile, pstats
 from channel import Channel
+from channelGPU import ChannelGPU
 from radar import Radar
 from pointTarget import PointTarget
 from dataMatrix import Data
+from dataMatrixGPU import DataGPU
 from rangeDoppler import RangeDopplerCompressor
 import pickle as pk
 
+
+
 # py modules
 import numpy as np
+import cupy as cp
 
 # switch for plotting
 ifplot = True
@@ -217,10 +222,21 @@ if __name__ == "__main__":
 
     # dump_raw_data_generated_from_simulator(data)
 
+
+    # Move the raw data into the GPU for processing
+    data = DataGPU(data)
+    channel = ChannelGPU(channel)
+
+    # Algorithm
     channel.filter_raw_signal(data)
+
     rangedop = RangeDopplerCompressor(channel, data)
     # compress the image
     outimage = rangedop.azimuth_compression(doppler_bandwidth=doppler_bandwidth, patternequ=False)
+
+    # Copy it back to the CPU for the iamge
+    
+
 
     # %%
 
