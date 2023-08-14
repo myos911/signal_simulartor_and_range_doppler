@@ -50,7 +50,7 @@ class DataGPU:
         self.range_doppler_reconstructed_image = data_cpu.range_doppler_reconstructed_image  # azimuth filtered signal, just before ifft - 2-d array
         self.reconstructed_image = data_cpu.reconstructed_image  # final reconstructed image - 2-d array
     
-        # DEBUGGING - TODO: REMOVE ----
+        # DEBUGGING - TODO: REMOVE
         # print(type(self.fast_time_axis))
         # print(type(self.slow_time_axis))
         # print(type(self.range_axis))

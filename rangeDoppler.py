@@ -206,10 +206,9 @@ class RangeDopplerCompressor:
 
         # dopplercentroid calculated assuming the antenna pattern symmetric
         gamma = channel.radar.geometry.forward_squint_angle
-        print(2 * self.radar.geometry.abs_v * self.radar.fc * cp.sin(gamma) / self.c)
-        exit()
+   
         self.doppler_centroid = 2 * self.radar.geometry.abs_v * \
-                                self.radar.fc * cp.sin(gamma) / self.c
+                                self.radar.fc * np.sin(gamma) / self.c
 
         # find the beam center range
         beta = self.radar.geometry.side_looking_angle
@@ -375,9 +374,8 @@ class RangeDopplerCompressor:
         blocks_per_grid_y = int(cp.ceil(doppler_range_compressed_matrix.shape[0] / threads_per_block[1]))
         blocks_per_grid = (blocks_per_grid_x, blocks_per_grid_y)
         matrix_rcmc = 1j * cp.zeros((self.data.rows_num, self.data.columns_num))
-        print(self.doppler_centroid)
-        print(type(self.doppler_centroid))
-        exit()
+        
+
         rcmc_cuda[blocks_per_grid, threads_per_block](doppler_range_compressed_matrix,
                            matrix_rcmc,
                            self.get_true_range_axis(),
@@ -449,8 +447,8 @@ class RangeDopplerCompressor:
         doppler_range_compressed_matrix = self.azimuth_fft(self.data.data_range_matrix)
 
         # dump raw data and free memory
-        self.data.dump_rx_data()
-        self.data.dump_range_compressed_matrix()
+        # self.data.dump_rx_data()
+        # self.data.dump_range_compressed_matrix()
         # perform fft
         self.data.set_doppler_range_compressed_matrix(doppler_range_compressed_matrix)
 
@@ -463,7 +461,7 @@ class RangeDopplerCompressor:
         doppler_range_compressed_matrix_rcmc = self.rcmc(doppler_range_compressed_matrix)
         self.data.set_doppler_range_compressed_matrix_rcmc(doppler_range_compressed_matrix_rcmc)
         # dump data and free memory
-        self.data.dump_doppler_range_compressed_matrix()
+        # self.data.dump_doppler_range_compressed_matrix()
         del doppler_range_compressed_matrix
 
         # memory tracing
@@ -483,12 +481,12 @@ class RangeDopplerCompressor:
         # 3.2 doppler windowing
         if doppler_bandwidth != 0:
             # matrix line window
-            doppler_window = np.where(np.abs(self.doppler_axis - self.doppler_centroid) <= doppler_bandwidth / 2, 1, 0)
+            doppler_window = cp.where(cp.abs(self.doppler_axis - self.doppler_centroid) <= doppler_bandwidth / 2, 1, 0)
             # apply the window
-            doppler_range_image_matrix = doppler_range_image_matrix * doppler_window[:, np.newaxis]
+            doppler_range_image_matrix = doppler_range_image_matrix * doppler_window[:, cp.newaxis]
 
         # dump and free memory
-        self.data.dump_doppler_range_compressed_matrix_rcmc()
+        # self.data.dump_doppler_range_compressed_matrix_rcmc()
         del doppler_range_compressed_matrix_rcmc
         self.azimuth_filter_matrix = None
         self.data.set_range_doppler_reconstructed_image(doppler_range_image_matrix)
@@ -502,18 +500,15 @@ class RangeDopplerCompressor:
         outimage = self.azimuth_ifft(doppler_range_image_matrix)
         # dump free and set memory
         self.data.set_reconstructed_image(outimage)
-        self.data.dump_range_doppler_reconstructed_image()
+        # self.data.dump_range_doppler_reconstructed_image()
         del doppler_range_image_matrix
-        self.data.dump_reconstructed_image()
+        # self.data.dump_reconstructed_image()
         # return reconstructed image
         print('Done')
 
         # memory tracing
         size, peak = tracemalloc.get_traced_memory()
         print("size: ", size / (1024 ** 2), " MB , peak: ", peak / (1024 ** 2), " MB")
-
-        print(type(outimage))
-        exit()
 
         return outimage
 

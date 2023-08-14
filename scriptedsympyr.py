@@ -29,7 +29,7 @@ import numpy as np
 import cupy as cp
 
 # switch for plotting
-ifplot = True
+ifplot = False
 
 # %%
 # 0 -  SIMULATOR SETTINGS
@@ -232,10 +232,10 @@ if __name__ == "__main__":
 
     rangedop = RangeDopplerCompressor(channel, data)
     # compress the image
-    outimage = rangedop.azimuth_compression(doppler_bandwidth=doppler_bandwidth, patternequ=False)
+    gpu_outimage = rangedop.azimuth_compression(doppler_bandwidth=doppler_bandwidth, patternequ=False)
 
     # Copy it back to the CPU for the iamge
-    
+    outimage = cp.asnumpy(gpu_outimage)
 
 
     # %%
@@ -244,7 +244,7 @@ if __name__ == "__main__":
         import matplotlib.pyplot as plt
 
         fig, ax = plt.subplots(1)
-        ax.pcolormesh(data.get_fast_time_axis(), data.get_slow_time_axis(), np.abs(outimage).astype(np.float32),
+        ax.pcolormesh(cp.asnumpy(data.get_fast_time_axis()), cp.asnumpy(data.get_slow_time_axis()), np.abs(outimage).astype(np.float32),
                     shading='auto', cmap=plt.get_cmap('hot'))
     profiler.disable()
     stats = pstats.Stats(profiler).sort_stats('tottime').print_stats(30)
