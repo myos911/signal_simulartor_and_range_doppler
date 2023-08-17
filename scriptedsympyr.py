@@ -201,7 +201,7 @@ if __name__ == "__main__":
         # %% store the simulation data for further processing
 
         print('pickling')
-        filename = './Simulatinp.linspace(on_Data/channel_dump.pk'
+        filename = './Simulation_Data/channel_dump.pk'
         os.makedirs(os.path.dirname(filename), exist_ok=True)
         with open('./Simulation_Data/channel_dump.pk', 'wb') as handle:
             pk.dump(channel, handle)

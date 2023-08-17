@@ -4,6 +4,7 @@ from dataMatrix import Data
 import pickle as pk
 import matplotlib.pyplot as plt
 import numpy as np
+import cupy as cp
 from channel import Channel
 
 # %% unpickle the data
@@ -59,7 +60,7 @@ fig, (ax, cax) = plt.subplots(1, 2,
                               figsize=[8 * 1.07, 4.8])
 
 fig.canvas.manager.set_window_title('R-A range compressed')
-c = ax.pcolormesh(fast_time_ax, slow_time_ax, np.abs(data.data_range_matrix),
+c = ax.pcolormesh(fast_time_ax, slow_time_ax, np.abs(cp.asnumpy(data.data_range_matrix)),
                   shading='auto')
 ax.set_xlabel("fast time [s]")
 ax.set_ylabel("slow time [s]")
@@ -78,7 +79,7 @@ fig, (ax, cax) = plt.subplots(1, 2,
                               gridspec_kw={"width_ratios": [1, 0.04]},
                               figsize=[6.2, 4])  # [8,4.8])
 fig.canvas.manager.set_window_title('R-A range uncompressed')
-c = ax.pcolormesh(fast_time_ax, slow_time_ax, np.real(data.data_matrix),
+c = ax.pcolormesh(fast_time_ax, slow_time_ax, np.real(cp.asnumpy(data.data_matrix)),
                   shading='auto', rasterized=True)
 ax.set_xlabel("fast time [s]")
 ax.set_ylabel("slow time [s]")
@@ -93,7 +94,7 @@ fig.tight_layout()
 # %% raw cuts
 fig, ax = plt.subplots(1, 1, figsize=[7.5, 7])  # [8,4.8])
 fig.canvas.manager.set_window_title('R-A range uncompressed h cut')
-ax.plot(fast_time_ax, np.real(data.data_matrix[int(data.rows_num / 2 + 0.5), :]))
+ax.plot(fast_time_ax, np.real(cp.asnumpy(data.data_matrix[int(data.rows_num / 2 + 0.5), :])))
 ax.set_xlabel("fast time [s]")
 # ax.set_ylabel("slow time [s]")
 # # ax.set_xlim(9.87e-05 - .387e-5,9.87e-05 + .387e-5)
@@ -110,7 +111,7 @@ fig.canvas.manager.set_window_title('R-A range uncompressed v cut')
 # ax.plot(np.real(data.data_matrix[:, int((rc % range_ax[-1]) / (range_ax[1] - range_ax[0]))]),slow_time_ax, )
 
 index = int(np.round(((rc * 2 / channel.c) % (1 / data.prf)) * data.Fs))
-ax.plot(np.real(data.data_matrix[:, index]), slow_time_ax)
+ax.plot(np.real(cp.asnumpy(data.data_matrix[:, index])), slow_time_ax)
 # ax.set_xlabel("fast time [s]")
 ax.set_ylabel("slow time [s]")
 # # ax.set_xlim(9.87e-05 - .387e-5,9.87e-05 + .387e-5)
@@ -127,7 +128,7 @@ fig, (ax, cax) = plt.subplots(1, 2,
                               gridspec_kw={"width_ratios": [1, 0.04]},
                               figsize=[8, 4.8])
 fig.canvas.manager.set_window_title('R-D range compressed')
-c = ax.pcolormesh(fast_time_ax, doppler_ax, np.abs(data.doppler_range_compressed_matrix),
+c = ax.pcolormesh(fast_time_ax, doppler_ax, np.abs(cp.asnumpy(data.doppler_range_compressed_matrix)),
                   shading='auto')
 ax.plot(td_dop, doppler_ax, '--r')  # with doppler error included
 
@@ -145,7 +146,7 @@ fig, (ax, cax) = plt.subplots(1, 2,
                               gridspec_kw={"width_ratios": [1, 0.04]},
                               figsize=[8, 7])
 fig.canvas.manager.set_window_title('R-D rcmc')
-c = ax.pcolormesh(fast_time_ax, doppler_ax, np.abs(data.doppler_range_compressed_matrix_rcmc),
+c = ax.pcolormesh(fast_time_ax, doppler_ax, np.abs(cp.asnumpy(data.doppler_range_compressed_matrix_rcmc)),
                   shading='auto')
 ax.plot(td_dop, doppler_ax, '--r')  # with doppler error included
 
@@ -164,7 +165,7 @@ fig, (ax, cax) = plt.subplots(1, 2,
                               gridspec_kw={"width_ratios": [1, 0.04]},
                               figsize=[8, 4.8])
 fig.canvas.manager.set_window_title('R-D reconstructed')
-c = ax.pcolormesh(fast_time_ax, doppler_ax, np.abs(data.range_doppler_reconstructed_image),
+c = ax.pcolormesh(fast_time_ax, doppler_ax, np.abs(cp.asnumpy(data.range_doppler_reconstructed_image)),
                   shading='auto')
 # ax.plot(td_dop, doppler_ax, '--r')  # with doppler error included
 
@@ -182,7 +183,7 @@ fig, (ax, cax) = plt.subplots(1, 2,
                               gridspec_kw={"width_ratios": [1, 0.04]},
                               figsize=[6.2, 4])
 fig.canvas.manager.set_window_title('R-A reconstructed')
-c = ax.pcolormesh(fast_time_ax, slow_time_ax, np.abs(data.reconstructed_image),
+c = ax.pcolormesh(fast_time_ax, slow_time_ax, np.abs(cp.asnumpy(data.reconstructed_image)),
                   shading='auto', cmap=plt.get_cmap('hot'), rasterized=True)
 ax.set_xlabel("fast time [s]")
 ax.set_ylabel("slow time [s]")

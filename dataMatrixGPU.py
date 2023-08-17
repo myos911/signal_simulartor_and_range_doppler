@@ -13,6 +13,9 @@ from dataMatrix import Data
 #  ____________________________utilities __________________________
 
 
+SHOULD_DUMP = False
+
+
 # ___________________________________________ Classes ______________________________________________
 class DataGPU:
     """
@@ -243,6 +246,8 @@ class DataGPU:
         :return:
         """
         # check if data is passed as argument or if is already stored as object property
+        if (SHOULD_DUMP == False):
+            return
         if data != None:
             self.set_rx_data(data)
 
@@ -281,6 +286,9 @@ class DataGPU:
         :param dir_path: optional arg, directory where to save the data. !! path SHALL end with '/' !!
         :return:
         """
+        if (SHOULD_DUMP == False):
+            return
+        
         # check if data is passed as argument or if is already stored as an object attribute
         if range_compressed_data != None:
             self.set_range_compressed_data(range_compressed_data)
@@ -317,6 +325,10 @@ class DataGPU:
         :param dir_path: optional arg, directory where to save the data. !! path SHALL end with '/' !!
         :return:
         """
+        if (SHOULD_DUMP == False):
+            return
+        doppler_range_compressed_matrix = cp.asnumpy(doppler_range_compressed_matrix)
+
         # check if data is passed as argument or if is already stored as an object attribute
         if doppler_range_compressed_matrix != None:
             self.set_doppler_range_compressed_matrix(doppler_range_compressed_matrix)
@@ -353,6 +365,10 @@ class DataGPU:
         :param dir_path: optional arg, directory where to save the data. !! path SHALL end with '/' !!
         :return:
         """
+        if (SHOULD_DUMP == False):
+            return
+        doppler_range_compressed_matrix_rcmc = cp.asnumpy(doppler_range_compressed_matrix_rcmc)
+
         # check if data is passed as argument or if is already stored as an object attribute
         if doppler_range_compressed_matrix_rcmc != None:
             self.set_doppler_range_compressed_matrix_rcmc(doppler_range_compressed_matrix_rcmc)
@@ -389,6 +405,10 @@ class DataGPU:
         :param dir_path: optional arg, directory where to save the data. !! path SHALL end with '/' !!
         :return:
         """
+        if (SHOULD_DUMP == False):
+            return
+        range_doppler_reconstructed_image = cp.asnumpy(range_doppler_reconstructed_image)
+
         # check if data is passed as argument or if is already stored as an object attribute
         if range_doppler_reconstructed_image != None:
             self.set_range_doppler_reconstructed_image(range_doppler_reconstructed_image)
@@ -424,6 +444,9 @@ class DataGPU:
         :param dir_path: optional arg, directory where to save the data. !! path SHALL end with '/' !!
         :return:
         """
+        if (SHOULD_DUMP == False):
+            return
+        reconstructed_image = cp.asnumpy(reconstructed_image)
         # check if data is passed as argument or if is already stored as an object attribute
         if reconstructed_image != None:
             self.set_reconstructed_image(reconstructed_image)
