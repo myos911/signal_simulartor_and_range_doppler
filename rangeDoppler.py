@@ -451,7 +451,7 @@ class RangeDopplerCompressor:
                            self.radar.pulse.rate,
                            self.doppler_centroid)
 
-
+        cuda.synchronize()
         # # NON CUDA IMPLEMENTATION
         # matrix_rcmc = 1j * np.zeros((self.data.rows_num, self.data.columns_num))
         # matrix_rcmc = rcmc(doppler_range_compressed_matrix,
