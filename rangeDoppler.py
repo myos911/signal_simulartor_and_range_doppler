@@ -169,13 +169,16 @@ def rcmc_cuda(range_doppler_matrix, range_doppler_matrix_rcmc, t_range_axis, Fs,
     tot_bins = range_doppler_matrix.shape[1]
     tot_lines = range_doppler_matrix.shape[0]
     
+    # Shared memory cache size
+    shared_cache_size = (32, 32)
+    
+    # Declare shared memory cache
+    shared_range_cache = cuda.shared.array(shape=shared_cache_size, dtype=range_doppler_matrix.dtype)
+    
     # Check if the thread index is within the range
     if rr < tot_bins and ll < tot_lines:
-        # range reference
         r_bin = t_range_axis[rr]
-        # the doppler axis
         doppler_axis = (ll - tot_lines // 2) * prf / tot_lines
-        # the doppler offset
         foffset = math.ceil(doppler_centroid / prf) * prf
         doppler_axis += foffset
         # wrapped around freq axis
@@ -195,14 +198,26 @@ def rcmc_cuda(range_doppler_matrix, range_doppler_matrix_rcmc, t_range_axis, Fs,
         point_r = 0
         point_i = 0
         # performing the interpolation
+
         for n in range(int(-n_interp / 2), int(n_interp / 2)):
-            # the fast time bin to include in the interpolation is
             t_n = int((t_idx + n) % tot_bins)
-            # the sum argument for the interpolation is then:
-            point_r += range_doppler_matrix[ll, t_n].real * math.sin(math.pi * Fs * (tm - t_n / Fs)) / (
-                    math.pi * Fs * (tm - t_n / Fs))
-            point_i += range_doppler_matrix[ll, t_n].imag * math.sin(math.pi * Fs * (tm - t_n / Fs)) / (
-                    math.pi * Fs * (tm - t_n / Fs))
+            if t_n < tot_bins:
+                shared_range_cache[rr, n + n_interp // 2] = range_doppler_matrix[ll, t_n]
+
+        # Synchronize threads within the block
+        cuda.syncthreads()
+
+        for n in range(int(-n_interp / 2), int(n_interp / 2)):
+            t_n = int((t_idx + n) % tot_bins)
+            if t_n < tot_bins:
+                point_r += shared_range_cache[rr, n + n_interp // 2 ].real * math.sin(math.pi * Fs * (tm - t_n / Fs)) / (
+                           math.pi * Fs * (tm - t_n / Fs))
+                point_i += shared_range_cache[rr, n + n_interp // 2 ].imag * math.sin(math.pi * Fs * (tm - t_n / Fs)) / (
+                           math.pi * Fs * (tm - t_n / Fs))
+
+        # Synchronize threads again before writing to output
+        cuda.syncthreads()
+
         range_doppler_matrix_rcmc[ll, rr] = point_r + 1j * point_i
 
 
@@ -450,7 +465,7 @@ class RangeDopplerCompressor:
                            self.c / self.radar.fc,
                            self.radar.pulse.rate,
                            self.doppler_centroid)
-
+        cuda.synchronize()
 
         # # NON CUDA IMPLEMENTATION
         # matrix_rcmc = 1j * np.zeros((self.data.rows_num, self.data.columns_num))

@@ -247,6 +247,6 @@ if __name__ == "__main__":
         ax.pcolormesh(cp.asnumpy(data.get_fast_time_axis()), cp.asnumpy(data.get_slow_time_axis()), np.abs(outimage).astype(np.float32),
                     shading='auto', cmap=plt.get_cmap('hot'))
     profiler.disable()
-    stats = pstats.Stats(profiler).sort_stats('tottime').print_stats(30)
+    stats = pstats.Stats(profiler).sort_stats('cumtime').print_stats(30)
     endTime=time.time()
     print("Total time: ", endTime-startTime, " seconds")
