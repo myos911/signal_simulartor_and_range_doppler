@@ -1,5 +1,5 @@
 import matplotlib.pyplot as plt
-from numba import prange, jit, cuda, prange
+from numba import prange, jit, cuda, prange, complex64
 import numba
 from tqdm import tqdm
 import pickle as pk
@@ -204,6 +204,94 @@ def rcmc_cuda(range_doppler_matrix, range_doppler_matrix_rcmc, t_range_axis, Fs,
             point_i += range_doppler_matrix[ll, t_n].imag * math.sin(math.pi * Fs * (tm - t_n / Fs)) / (
                     math.pi * Fs * (tm - t_n / Fs))
         range_doppler_matrix_rcmc[ll, rr] = point_r + 1j * point_i
+
+
+@cuda.jit
+def rcmc_cuda_optimized1(range_doppler_matrix, range_doppler_matrix_rcmc, t_range_axis, Fs, prf, v_sat, cc, lamb_c, rate, doppler_centroid):
+    rr, ll = cuda.grid(2)
+    tot_bins = range_doppler_matrix.shape[1]
+    tot_lines = range_doppler_matrix.shape[0]
+    
+    if rr < tot_bins and ll < tot_lines:
+        r_bin = t_range_axis[rr]
+        doppler_axis = (ll - tot_lines // 2) * prf / tot_lines
+        foffset = math.ceil(doppler_centroid / prf) * prf
+        doppler_axis += foffset
+        
+        if doppler_axis > doppler_centroid + prf / 2:
+            doppler_axis -= prf
+        if doppler_axis < doppler_centroid - prf / 2:
+            doppler_axis += prf
+        
+        vts = (doppler_axis ** 2 * r_bin ** 2) / (4 * v_sat ** 2 / lamb_c ** 2 - doppler_axis ** 2)
+        rm = math.sqrt(r_bin ** 2 + vts) - doppler_axis * cc / (2 * rate)
+        tm = (2 * rm / cc) % (1 / prf)
+        t_idx = int(math.ceil(tm * Fs))
+        
+        n_interp = 128
+        point_r = 0
+        point_i = 0
+        
+        # Allocate shared memory for range_doppler_matrix slices
+        shared_matrix = cuda.shared.array(shape=(32, 32), dtype=complex64)
+        
+        for n in range(int(-n_interp / 2), int(n_interp / 2)):
+            t_n = int((t_idx + n) % tot_bins)
+            if n < 32:
+                shared_matrix[ll % 32, t_n % 32] = range_doppler_matrix[ll, t_n]
+            cuda.syncthreads()
+
+            shared_value = shared_matrix[ll % 32, t_n % 32]
+            point_r += shared_value.real * math.sin(math.pi * Fs * (tm - t_n / Fs)) / (
+                    math.pi * Fs * (tm - t_n / Fs))
+            point_i += shared_value.imag * math.sin(math.pi * Fs * (tm - t_n / Fs)) / (
+                    math.pi * Fs * (tm - t_n / Fs))
+            cuda.syncthreads()
+        
+        range_doppler_matrix_rcmc[ll, rr] = complex64(point_r + 1j * point_i)
+
+@cuda.jit
+def rcmc_cuda_optimized2(range_doppler_matrix, range_doppler_matrix_rcmc, t_range_axis, Fs, prf, v_sat, cc, lamb_c, rate, doppler_centroid):
+    rr, ll = cuda.grid(2)
+    tot_bins = range_doppler_matrix.shape[1]
+    tot_lines = range_doppler_matrix.shape[0]
+    
+    if rr < tot_bins and ll < tot_lines:
+        r_bin = t_range_axis[rr]
+        doppler_axis = (ll - tot_lines // 2) * prf / tot_lines
+        foffset = math.ceil(doppler_centroid / prf) * prf
+        doppler_axis += foffset
+        
+        if doppler_axis > doppler_centroid + prf / 2:
+            doppler_axis -= prf
+        if doppler_axis < doppler_centroid - prf / 2:
+            doppler_axis += prf
+        
+        vts = (doppler_axis ** 2 * r_bin ** 2) / (4 * v_sat ** 2 / lamb_c ** 2 - doppler_axis ** 2)
+        rm = math.sqrt(r_bin ** 2 + vts) - doppler_axis * cc / (2 * rate)
+        tm = (2 * rm / cc) % (1 / prf)
+        t_idx = int(math.ceil(tm * Fs))
+        
+        n_interp = 128
+        point_r = 0
+        point_i = 0
+        
+        shared_matrix = cuda.shared.array(shape=(32, 32), dtype=complex64)
+        
+        t_n_base = (t_idx - n_interp // 2) % tot_bins
+        
+        for n in range(32):
+            t_n = (t_n_base + n) % tot_bins
+            shared_matrix[ll % 32, n] = range_doppler_matrix[ll, t_n]
+        
+        cuda.syncthreads()
+
+        for n in range(int(-n_interp / 2), int(n_interp / 2)):
+            sin_arg = math.sin(math.pi * Fs * (tm - (t_idx + n) / Fs)) / (math.pi * Fs * (tm - (t_idx + n) / Fs))
+            point_r += shared_matrix[ll % 32, (n + n_interp // 2) % 32].real * sin_arg
+            point_i += shared_matrix[ll % 32, (n + n_interp // 2) % 32].imag * sin_arg
+
+        range_doppler_matrix_rcmc[ll, rr] = complex64(point_r + 1j * point_i)
 
 
 # range cell migration compensation
