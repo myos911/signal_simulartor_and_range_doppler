@@ -228,6 +228,39 @@ def rcmc_cuda_optimized(range_doppler_matrix, range_doppler_matrix_rcmc, t_range
         t_idx = int(math.ceil(tm * Fs))
         
         n_interp = 128
+        point_r = 0.0
+        point_i = 0.0
+        
+        for n in range(int(-n_interp / 2), int(n_interp / 2)):
+            t_n = int((t_idx + n) % tot_bins)
+            sin_arg = math.sin(math.pi * Fs * (tm - t_n / Fs)) / (math.pi * Fs * (tm - t_n / Fs))
+            point_r += range_doppler_matrix[ll, t_n].real * sin_arg
+            point_i += range_doppler_matrix[ll, t_n].imag * sin_arg
+        range_doppler_matrix_rcmc[ll, rr] = complex64(point_r + 1j * point_i)
+
+@cuda.jit
+def rcmc_cuda_optimized5(range_doppler_matrix, range_doppler_matrix_rcmc, t_range_axis, Fs, prf, v_sat, cc, lamb_c, rate, doppler_centroid):
+    rr, ll = cuda.grid(2)
+    tot_bins = range_doppler_matrix.shape[1]
+    tot_lines = range_doppler_matrix.shape[0]
+    
+    if rr < tot_bins and ll < tot_lines:
+        r_bin = t_range_axis[rr]
+        doppler_axis = (ll - tot_lines // 2) * prf / tot_lines
+        foffset = math.ceil(doppler_centroid / prf) * prf
+        doppler_axis += foffset
+        
+        if doppler_axis > doppler_centroid + prf / 2:
+            doppler_axis -= prf
+        if doppler_axis < doppler_centroid - prf / 2:
+            doppler_axis += prf
+        
+        vts = (doppler_axis ** 2 * r_bin ** 2) / (4 * v_sat ** 2 / lamb_c ** 2 - doppler_axis ** 2)
+        rm = math.sqrt(r_bin ** 2 + vts) - doppler_axis * cc / (2 * rate)
+        tm = (2 * rm / cc) % (1 / prf)
+        t_idx = int(math.ceil(tm * Fs))
+        
+        n_interp = 128
         point_r = 0
         point_i = 0
         
