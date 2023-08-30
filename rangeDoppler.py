@@ -199,10 +199,10 @@ def rcmc_cuda(range_doppler_matrix, range_doppler_matrix_rcmc, t_range_axis, Fs,
             # the fast time bin to include in the interpolation is
             t_n = int((t_idx + n) % tot_bins)
             # the sum argument for the interpolation is then:
-            point_r += range_doppler_matrix[ll, t_n].real * math.sin(math.pi * Fs * (tm - t_n / Fs)) / (
-                    math.pi * Fs * (tm - t_n / Fs))
-            point_i += range_doppler_matrix[ll, t_n].imag * math.sin(math.pi * Fs * (tm - t_n / Fs)) / (
-                    math.pi * Fs * (tm - t_n / Fs))
+            pi_arg = math.pi * Fs * (tm - t_n / Fs)
+            sin_arg = math.sin(pi_arg) / (pi_arg)
+            point_r += range_doppler_matrix[ll, t_n].real * sin_arg
+            point_i += range_doppler_matrix[ll, t_n].imag * sin_arg
         range_doppler_matrix_rcmc[ll, rr] = point_r + 1j * point_i
 
 
@@ -242,10 +242,10 @@ def rcmc_cuda_optimized1(range_doppler_matrix, range_doppler_matrix_rcmc, t_rang
             cuda.syncthreads()
 
             shared_value = shared_matrix[ll % 32, t_n % 32]
-            point_r += shared_value.real * math.sin(math.pi * Fs * (tm - t_n / Fs)) / (
-                    math.pi * Fs * (tm - t_n / Fs))
-            point_i += shared_value.imag * math.sin(math.pi * Fs * (tm - t_n / Fs)) / (
-                    math.pi * Fs * (tm - t_n / Fs))
+
+            sin_arg = math.sin(math.pi * Fs * (tm - t_n / Fs)) / (math.pi * Fs * (tm - t_n / Fs))
+            point_r += shared_value.real * sin_arg
+            point_i += shared_value.imag * sin_arg
             cuda.syncthreads()
         
         range_doppler_matrix_rcmc[ll, rr] = complex64(point_r + 1j * point_i)
@@ -528,7 +528,7 @@ class RangeDopplerCompressor:
         matrix_rcmc = 1j * cp.zeros((self.data.rows_num, self.data.columns_num))
         
 
-        rcmc_cuda[blocks_per_grid, threads_per_block](doppler_range_compressed_matrix,
+        rcmc_cuda_optimized1[blocks_per_grid, threads_per_block](doppler_range_compressed_matrix,
                            matrix_rcmc,
                            self.get_true_range_axis(),
                            self.Fs,
