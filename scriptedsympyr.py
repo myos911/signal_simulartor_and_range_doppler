@@ -29,7 +29,7 @@ import numpy as np
 import cupy as cp
 
 # switch for plotting
-ifplot = False
+ifplot = True
 
 # %%
 # 0 -  SIMULATOR SETTINGS
@@ -234,18 +234,24 @@ if __name__ == "__main__":
     # compress the image
     gpu_outimage = rangedop.azimuth_compression(doppler_bandwidth=doppler_bandwidth, patternequ=False)
 
-    # Copy it back to the CPU for the iamge
-    outimage = cp.asnumpy(gpu_outimage)
 
 
     # %%
 
-    if ifplot:
+    if ifplot:        
         import matplotlib.pyplot as plt
+                    # Copy it back to the CPU for the iamge
 
+        outimage = cp.asnumpy(gpu_outimage)
         fig, ax = plt.subplots(1)
-        ax.pcolormesh(cp.asnumpy(data.get_fast_time_axis()), cp.asnumpy(data.get_slow_time_axis()), np.abs(outimage).astype(np.float32),
-                    shading='auto', cmap=plt.get_cmap('hot'))
+        c = ax.pcolormesh(cp.asnumpy(data.get_fast_time_axis()), cp.asnumpy(data.get_slow_time_axis()), np.abs(outimage).astype(np.float32),
+                    shading='auto', cmap=plt.get_cmap('hot'), rasterized=True)
+
+        fig.colorbar(c)
+
+        fig.tight_layout()
+        plt.show()
+
     profiler.disable()
     stats = pstats.Stats(profiler).sort_stats('cumtime').print_stats(30)
     endTime=time.time()

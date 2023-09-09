@@ -168,7 +168,7 @@ def rcmc_cuda(range_doppler_matrix, range_doppler_matrix_rcmc, t_range_axis, Fs,
     # Get the total number of range bins and lines
     tot_bins = range_doppler_matrix.shape[1]
     tot_lines = range_doppler_matrix.shape[0]
-    
+
     # Check if the thread index is within the range
     if rr < tot_bins and ll < tot_lines:
         # range reference
@@ -222,13 +222,17 @@ def rcmc_cuda_optimized1(range_doppler_matrix, range_doppler_matrix_rcmc, t_rang
             doppler_axis -= prf
         if doppler_axis < doppler_centroid - prf / 2:
             doppler_axis += prf
+
+        doppler_squared = doppler_axis * doppler_axis;
+        rbin_squared = r_bin * r_bin;
         
-        vts = (doppler_axis ** 2 * r_bin ** 2) / (4 * v_sat ** 2 / lamb_c ** 2 - doppler_axis ** 2)
-        rm = math.sqrt(r_bin ** 2 + vts) - doppler_axis * cc / (2 * rate)
+        
+        vts = (doppler_squared * rbin_squared) / (4 * v_sat * v_sat / lamb_c * lamb_c - doppler_squared)
+        rm = math.sqrt(rbin_squared+ vts) - doppler_axis * cc / (2 * rate)
         tm = (2 * rm / cc) % (1 / prf)
         t_idx = int(math.ceil(tm * Fs))
         
-        n_interp = 128
+        n_interp = 64
         point_r = 0
         point_i = 0
         
@@ -528,7 +532,7 @@ class RangeDopplerCompressor:
         matrix_rcmc = 1j * cp.zeros((self.data.rows_num, self.data.columns_num))
         
 
-        rcmc_cuda_optimized1[blocks_per_grid, threads_per_block](doppler_range_compressed_matrix,
+        rcmc_cuda[blocks_per_grid, threads_per_block](doppler_range_compressed_matrix,
                            matrix_rcmc,
                            self.get_true_range_axis(),
                            self.Fs,
