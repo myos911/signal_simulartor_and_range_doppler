@@ -162,7 +162,7 @@ def r_of_f_r_dopl(f, rc, v, lam_c, c, K):
     return r
 
 @cuda.jit
-def rcmc_cuda(range_doppler_matrix, range_doppler_matrix_rcmc, t_range_axis, Fs, prf, v_sat, cc, lamb_c, rate, doppler_centroid):
+def rcmc_cuda(range_doppler_matrix, range_doppler_matrix_rcmc, t_range_axis, Fs, prf, v_sat, cc, lamb_c, rate, doppler_axis):
     # Get the thread index
     rr, ll = cuda.grid(2)
     # Get the total number of range bins and lines
@@ -173,19 +173,10 @@ def rcmc_cuda(range_doppler_matrix, range_doppler_matrix_rcmc, t_range_axis, Fs,
     if rr < tot_bins and ll < tot_lines:
         # range reference
         r_bin = t_range_axis[rr]
-        # the doppler axis
-        doppler_axis = (ll - tot_lines // 2) * prf / tot_lines
-        # the doppler offset
-        foffset = math.ceil(doppler_centroid / prf) * prf
-        doppler_axis += foffset
-        # wrapped around freq axis
-        if doppler_axis > doppler_centroid + prf / 2:
-            doppler_axis -= prf
-        if doppler_axis < doppler_centroid - prf / 2:
-            doppler_axis += prf
+    
         # the range migration is
-        vts = (doppler_axis ** 2 * r_bin ** 2) / (4 * v_sat ** 2 / lamb_c ** 2 - doppler_axis ** 2)
-        rm = math.sqrt(r_bin ** 2 + vts) - doppler_axis * cc / (2 * rate)
+        vts = (doppler_axis[ll] ** 2 * r_bin ** 2) / (4 * v_sat ** 2 / lamb_c ** 2 - doppler_axis[ll] ** 2)
+        rm = math.sqrt(r_bin ** 2 + vts) - doppler_axis[ll] * cc / (2 * rate)
         # the associated delay in fast time is
         tm = (2 * rm / cc) % (1 / prf)
         # the closest fast time bin is
@@ -529,7 +520,20 @@ class RangeDopplerCompressor:
         blocks_per_grid_x = int(cp.ceil(doppler_range_compressed_matrix.shape[1] / threads_per_block[0]))
         blocks_per_grid_y = int(cp.ceil(doppler_range_compressed_matrix.shape[0] / threads_per_block[1]))
         blocks_per_grid = (blocks_per_grid_x, blocks_per_grid_y)
+        doppler_axis = cp.linspace(-self.radar.prf / 2,
+                                    (1 - 1 / len(doppler_range_compressed_matrix[:, 0])) * self.radar.prf / 2,
+                                    len(doppler_range_compressed_matrix[:, 0]))
+        foffset = cp.ceil(self.doppler_centroid / self.radar.prf) * self.radar.prf
+        doppler_axis += foffset
+        # wrapped around freq axis
+        doppler_axis_out = cp.where(doppler_axis > self.doppler_centroid + self.radar.prf / 2)
+        if len(doppler_axis_out) != 0:
+            doppler_axis[doppler_axis_out] -= self.radar.prf
+            doppler_axis_out = cp.where(doppler_axis < self.doppler_centroid - self.radar.prf / 2)
+        if len(doppler_axis_out) != 0:
+            doppler_axis[doppler_axis_out] += self.radar.prf
         matrix_rcmc = 1j * cp.zeros((self.data.rows_num, self.data.columns_num))
+
         
 
         rcmc_cuda[blocks_per_grid, threads_per_block](doppler_range_compressed_matrix,
@@ -541,7 +545,7 @@ class RangeDopplerCompressor:
                            self.c,
                            self.c / self.radar.fc,
                            self.radar.pulse.rate,
-                           self.doppler_centroid)
+                           doppler_axis)
 
         cuda.synchronize()
         # # NON CUDA IMPLEMENTATION
