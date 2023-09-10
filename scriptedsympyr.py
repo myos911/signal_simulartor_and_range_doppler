@@ -29,7 +29,7 @@ import numpy as np
 import cupy as cp
 
 # switch for plotting
-ifplot = True
+ifplot = False
 
 # %%
 # 0 -  SIMULATOR SETTINGS
