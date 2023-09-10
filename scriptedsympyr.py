@@ -210,8 +210,11 @@ if ifplot:
     import matplotlib.pyplot as plt
 
     fig, ax = plt.subplots(1)
-    ax.pcolormesh(data.get_fast_time_axis(), data.get_slow_time_axis(), np.abs(outimage).astype(np.float32),
+    c = ax.pcolormesh(data.get_fast_time_axis(), data.get_slow_time_axis(), np.abs(outimage).astype(np.float32),
                   shading='auto', cmap=plt.get_cmap('hot'))
+
+    fig.colorbar(c)
+    plt.show()
 profiler.disable()
 stats = pstats.Stats(profiler).sort_stats('tottime').print_stats(30)
 endTime=time.time()
