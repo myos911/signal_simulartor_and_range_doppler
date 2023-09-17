@@ -203,7 +203,7 @@ channel.filter_raw_signal(data)
 rangedop = RangeDopplerCompressor(channel, data)
 # compress the image
 outimage = rangedop.azimuth_compression(doppler_bandwidth=doppler_bandwidth, patternequ=False)
-
+print(outimage)
 # dump outimage to pk file
 filename = './Simulation_Data/correct_outimage.pk'
 os.makedirs(os.path.dirname(filename), exist_ok=True)
