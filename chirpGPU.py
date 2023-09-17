@@ -87,6 +87,26 @@ class ChirpGPU:
         self.rate = bandwidth / self.duration
         return self.rate, self.duration
 
+    def chirp_spectrum(self, v):
+        """ calculates the chirp spectrum over the passed frequency vector v
+        :param  v:, frequency numpy ndarray
+        :return:, complex base-banded spectrum
+        """
+        rate = self.rate
+        duration = self.duration
+        alpha = np.pi * rate
+        omega = np.pi * 2 * v
+        # Uncomment one of the following
+        # -> basebanded 1W signal with 1/sqrt(2) amplitude
+        # S = (1 / np.sqrt(2)) * np.sqrt(np.pi / (2 * np.abs(alpha))) * np.exp(-1j * omega ** 2 / (4 * alpha)) * (
+        #         modified_fresnel((omega + alpha * duration) / (2 * np.sqrt(np.abs(alpha)))) - modified_fresnel(
+        #     (omega - alpha * duration) / (2 * np.sqrt(np.abs(alpha)))))
+        # -> normalized baseband signal with 1 amplitude
+        S = np.sqrt(np.pi / (2 * np.abs(alpha))) * np.exp(-1j * omega ** 2 / (4 * alpha)) * (
+                modified_fresnel((omega + alpha * duration) / (2 * np.sqrt(np.abs(alpha)))) - modified_fresnel(
+            (omega - alpha * duration) / (2 * np.sqrt(np.abs(alpha)))))
+        return S
+
     def chirp_matched_filter_posp(self, v):
         """ calculates the inverse chirp spectrum using the principle of stationary phase over the passed frequency vector v
         :param  v:, frequency numpy ndarray

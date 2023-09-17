@@ -29,7 +29,7 @@ import numpy as np
 import cupy as cp
 
 # switch for plotting
-ifplot = False
+ifplot = True
 
 # %%
 # 0 -  SIMULATOR SETTINGS
@@ -243,6 +243,22 @@ if __name__ == "__main__":
                     # Copy it back to the CPU for the iamge
 
         outimage = cp.asnumpy(gpu_outimage)
+        #read correct_outimage.pk
+        with open('./Simulation_Data/correct_outimage.pk', 'rb') as handle:
+            correct_outimage = pk.load(handle)
+            handle.close()
+
+        print("*******************************")
+        
+        diff = np.abs(outimage - correct_outimage)
+        print("Max diff: ", np.max(diff))
+        normalised_diff = diff / correct_outimage
+        print("Max normalised diff: ", np.max(normalised_diff))
+        print("*******************************")
+        print("result: ",(outimage))
+        print("*******************************")
+        print("correct: ", (correct_outimage))
+        print("*******************************")
         fig, ax = plt.subplots(1)
         c = ax.pcolormesh(cp.asnumpy(data.get_fast_time_axis()), cp.asnumpy(data.get_slow_time_axis()), np.abs(outimage).astype(np.float32),
                     shading='auto', cmap=plt.get_cmap('hot'), rasterized=True)
@@ -250,7 +266,18 @@ if __name__ == "__main__":
         fig.colorbar(c)
 
         fig.tight_layout()
+
+        fig, ax = plt.subplots(1)
+        d = ax.pcolormesh(cp.asnumpy(data.get_fast_time_axis()), cp.asnumpy(data.get_slow_time_axis()), np.abs(correct_outimage).astype(np.float32),
+                    shading='auto', cmap=plt.get_cmap('hot'), rasterized=True)
+
+        fig.colorbar(d)
+
+        fig.tight_layout()
         plt.show()
+    
+
+
 
     profiler.disable()
     stats = pstats.Stats(profiler).sort_stats('cumtime').print_stats(30)

@@ -44,16 +44,23 @@ class MatchedFilter:
         :param sampling_freq sampling frequency of x
         :return filtered signal
         """
-        # frequency axis creation
-        f = cp.linspace(-sampling_freq / 2, sampling_freq / 2 - sampling_freq / len(x), len(x))
-        # TRUE SPECTRUM IMPLEMENTATION
-        # transfer_function = 1 / self.pulse.chirp_spectrum(f) * cp.where(cp.abs(f) <= self.pulse.get_bandwidth() / 2, 1, 0)
-        # transfer_function = cp.fft.ifftshift(transfer_function)
+      
+        # ----- Perform on CPU
+        f = np.linspace(-sampling_freq / 2, sampling_freq / 2 - sampling_freq / len(x), len(x))   # frequency axis creation
+
+        transfer_function_cpu = 1 / self.pulse.chirp_spectrum(f) * np.where(np.abs(f) <= self.pulse.get_bandwidth() / 2, 1, 0)
+
+        # ---- Switch Back to GPU
+        transfer_function = cp.asarray(transfer_function_cpu)
+
+        transfer_function = cp.fft.ifftshift(transfer_function)
         spectrum = cp.fft.fft(cp.fft.ifftshift(x)) / sampling_freq  # normalization #todo check if ifftshift is the correct one
-        # spectrum *= transfer_function
+        spectrum *= transfer_function
+
+
         # POSP IMPLEMENTATION
-        spectrum *= cp.fft.ifftshift(self.pulse.chirp_matched_filter_posp(f))
-        spectrum *= cp.fft.ifftshift(cp.where(cp.abs(f) <= self.pulse.get_bandwidth() / 2, 1, 0))
+        # spectrum *= cp.fft.ifftshift(self.pulse.chirp_matched_filter_posp(f))
+        # spectrum *= cp.fft.ifftshift(cp.where(cp.abs(f) <= self.pulse.get_bandwidth() / 2, 1, 0))
         convolved_signal = cp.fft.ifft(spectrum)  * sampling_freq   # denormalization
         return cp.fft.fftshift(convolved_signal), spectrum
 
