@@ -45,13 +45,13 @@ class MatchedFilter:
         # frequency axis creation
         f = np.linspace(-sampling_freq / 2, sampling_freq / 2 - sampling_freq / len(x), len(x))
         # TRUE SPECTRUM IMPLEMENTATION
-        transfer_function = 1 / self.pulse.chirp_spectrum(f) * np.where(np.abs(f) <= self.pulse.get_bandwidth() / 2, 1, 0)
-        transfer_function = np.fft.ifftshift(transfer_function)
+        # transfer_function = 1 / self.pulse.chirp_spectrum(f) * np.where(np.abs(f) <= self.pulse.get_bandwidth() / 2, 1, 0)
+        # transfer_function = np.fft.ifftshift(transfer_function)
         spectrum = np.fft.fft(np.fft.ifftshift(x)) / sampling_freq  # normalization #todo check if ifftshift is the correct one
-        spectrum *= transfer_function
+        # spectrum *= transfer_function
         # POSP IMPLEMENTATION
-        #spectrum *= np.fft.ifftshift(self.pulse.chirp_matched_filter_posp(f))
-        #spectrum *= np.fft.ifftshift(np.where(np.abs(f) <= self.pulse.get_bandwidth() / 2, 1, 0))
+        spectrum *= np.fft.ifftshift(self.pulse.chirp_matched_filter_posp(f))
+        spectrum *= np.fft.ifftshift(np.where(np.abs(f) <= self.pulse.get_bandwidth() / 2, 1, 0))
         convolved_signal = np.fft.ifft(spectrum)  * sampling_freq   # denormalization
         return np.fft.fftshift(convolved_signal), spectrum
 
