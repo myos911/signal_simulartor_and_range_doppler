@@ -3,10 +3,11 @@ import os
 import tracemalloc
 from functools import partial
 from threading import Thread
-
+import pickle as pk
 import numpy as np
 from numba import njit, jit, prange
 from tqdm import tqdm
+import cupy as cp
 
 from dataMatrix import Data
 from matchedFilter import MatchedFilter
@@ -273,10 +274,19 @@ class Channel:
         # filter signal
         print("Performing matched filter fast convolution")
         # the maximum segment size is set to be 2^22
-        compdata, spec = filter.fast_convolution_segmented(data.data, data.Fs, int(2 ** 24))
+        compdata, spec = filter.fast_convolution_segmented_gpu(cp.asarray(data.data), data.Fs, int(2 ** 24))
+        # dump compdata to pk file in retrace folder
+        numpy_compdata = cp.asnumpy(compdata)
+        print(numpy_compdata)
+        
+        with open('./retrace_data/matched_filter.pk', 'wb') as handle:
+            pk.dump(numpy_compdata, handle)
+            handle.close()
+
         # the returned spectrum spec has no significance here (is the spectrum of the last segment processed)
         # store range compressed signal
         data.set_range_compressed_data(compdata)
+        exit()
 
 
 ######################################## SELF TEST #####################################
