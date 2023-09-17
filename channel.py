@@ -276,8 +276,9 @@ class Channel:
         # the maximum segment size is set to be 2^22
         compdata, spec = filter.fast_convolution_segmented_gpu(cp.asarray(data.data), data.Fs, int(2 ** 24))
         # dump compdata to pk file in retrace folder
+        # RETRACE STEP 1
         numpy_compdata = cp.asnumpy(compdata)
-        print(numpy_compdata)
+        # print(numpy_compdata)
         
         with open('./retrace_data/matched_filter.pk', 'wb') as handle:
             pk.dump(numpy_compdata, handle)
@@ -286,7 +287,6 @@ class Channel:
         # the returned spectrum spec has no significance here (is the spectrum of the last segment processed)
         # store range compressed signal
         data.set_range_compressed_data(compdata)
-        exit()
 
 
 ######################################## SELF TEST #####################################

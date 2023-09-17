@@ -4,6 +4,7 @@ from numpy import fft
 from tqdm import tqdm
 import pickle as pk
 import tracemalloc
+import cupy as cp
 
 from channel import Channel
 from dataMatrix import Data
@@ -297,9 +298,9 @@ class RangeDopplerCompressor:
     # ALGORITHM COMPONENTS
 
     def azimuth_fft(self, range_compressed_matrix):
-        out = 1j * np.zeros_like(range_compressed_matrix)
+        out = 1j * cp.zeros_like(range_compressed_matrix)
         for ii in range(len(range_compressed_matrix[0, :])):
-            out[:, ii] = fft.fftshift(fft.fft(fft.ifftshift(range_compressed_matrix[:, ii])))
+            out[:, ii] = cp.fft.fftshift(cp.fft.fft(cp.fft.ifftshift(range_compressed_matrix[:, ii])))
         return out / self.radar.prf
 
     def azimuth_ifft(self, doppler_range_filtered_matrix):
@@ -370,6 +371,12 @@ class RangeDopplerCompressor:
         # 1 azimuth fft
         print('1/4 performing azimuth fft')
         doppler_range_compressed_matrix = self.azimuth_fft(self.data.data_range_matrix)
+        # RETRACE STEP 2
+
+        with open('./retrace_data/azimuth_fft.pk', 'wb') as handle:
+            pk.dump(doppler_range_compressed_matrix, handle)
+            handle.close()
+
         # dump raw data and free memory
         self.data.dump_rx_data()
         self.data.dump_range_compressed_matrix()
