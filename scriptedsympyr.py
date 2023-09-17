@@ -204,14 +204,27 @@ rangedop = RangeDopplerCompressor(channel, data)
 # compress the image
 outimage = rangedop.azimuth_compression(doppler_bandwidth=doppler_bandwidth, patternequ=False)
 
+# dump outimage to pk file
+filename = './Simulation_Data/correct_outimage.pk'
+os.makedirs(os.path.dirname(filename), exist_ok=True)
+with open('./Simulation_Data/correct_outimage.pk', 'wb') as handle:
+    pk.dump(outimage, handle)
+    handle.close()
+
+
 # %%
 
 if ifplot:
     import matplotlib.pyplot as plt
 
     fig, ax = plt.subplots(1)
-    ax.pcolormesh(data.get_fast_time_axis(), data.get_slow_time_axis(), np.abs(outimage).astype(np.float32),
+    c = ax.pcolormesh(data.get_fast_time_axis(), data.get_slow_time_axis(), np.abs(outimage).astype(np.float32),
                   shading='auto', cmap=plt.get_cmap('hot'))
+    fig.colorbar(c)
+
+    fig.tight_layout()
+    plt.show()
+
 profiler.disable()
 stats = pstats.Stats(profiler).sort_stats('tottime').print_stats(30)
 endTime=time.time()
