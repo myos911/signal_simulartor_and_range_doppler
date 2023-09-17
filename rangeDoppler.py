@@ -316,7 +316,7 @@ class RangeDopplerCompressor:
         :return: rcmc'ed martrix
         """
         matrix_rcmc = 1j * np.zeros((self.data.rows_num, self.data.columns_num))
-        matrix_rcmc = rcmc(doppler_range_compressed_matrix,
+        matrix_rcmc = rcmc(cp.asnumpy(doppler_range_compressed_matrix),
                            matrix_rcmc,
                            self.get_true_range_axis(),
                            self.Fs,
@@ -390,6 +390,14 @@ class RangeDopplerCompressor:
         # 2 rcmc
         print('2/4 performing range cell migration correction')
         doppler_range_compressed_matrix_rcmc = self.rcmc(doppler_range_compressed_matrix)
+
+        # RETRACE STEP 3
+
+        with open('./original_data/rcmc.pk', 'wb') as handle:
+            pk.dump(cp.asnumpy(doppler_range_compressed_matrix), handle)
+            handle.close()
+
+
         self.data.set_doppler_range_compressed_matrix_rcmc(doppler_range_compressed_matrix_rcmc)
         # dump data and free memory
         self.data.dump_doppler_range_compressed_matrix()
