@@ -370,6 +370,11 @@ class RangeDopplerCompressor:
         # 1 azimuth fft
         print('1/4 performing azimuth fft')
         doppler_range_compressed_matrix = self.azimuth_fft(self.data.data_range_matrix)
+        # RETRACE STEP 2
+
+        with open('./original_data/azimuth_fft.pk', 'wb') as handle:
+            pk.dump(doppler_range_compressed_matrix, handle)
+            handle.close()
         # dump raw data and free memory
         self.data.dump_rx_data()
         self.data.dump_range_compressed_matrix()
@@ -383,6 +388,11 @@ class RangeDopplerCompressor:
         # 2 rcmc
         print('2/4 performing range cell migration correction')
         doppler_range_compressed_matrix_rcmc = self.rcmc(doppler_range_compressed_matrix)
+        # RETRACE STEP 3
+        with open('./original_data/rcmc.pk', 'wb') as handle:
+            pk.dump(doppler_range_compressed_matrix_rcmc, handle)
+            handle.close()
+
         self.data.set_doppler_range_compressed_matrix_rcmc(doppler_range_compressed_matrix_rcmc)
         # dump data and free memory
         self.data.dump_doppler_range_compressed_matrix()
@@ -409,6 +419,11 @@ class RangeDopplerCompressor:
             # apply the window
             doppler_range_image_matrix = doppler_range_image_matrix * doppler_window[:, np.newaxis]
 
+        # RETRACE STEP 4
+        with open('./original_data/azimuth_filter4.pk', 'wb') as handle:
+            pk.dump(doppler_range_compressed_matrix_rcmc, handle)
+            handle.close()
+
         # dump and free memory
         self.data.dump_doppler_range_compressed_matrix_rcmc()
         del doppler_range_compressed_matrix_rcmc
@@ -423,6 +438,11 @@ class RangeDopplerCompressor:
         print('4/4 performing azimuth ifft')
         outimage = self.azimuth_ifft(doppler_range_image_matrix)
         # dump free and set memory
+        # RETRACE STEP 4
+        with open('./original_data/azimuth_ifft.pk', 'wb') as handle:
+            pk.dump(outimage, handle)
+            handle.close()
+
         self.data.set_reconstructed_image(outimage)
         self.data.dump_range_doppler_reconstructed_image()
         del doppler_range_image_matrix

@@ -3,6 +3,8 @@ import os
 import tracemalloc
 from functools import partial
 from threading import Thread
+import pickle as pk
+import cupy as cp
 
 import numpy as np
 from numba import njit, jit, prange
@@ -274,6 +276,14 @@ class Channel:
         print("Performing matched filter fast convolution")
         # the maximum segment size is set to be 2^22
         compdata, spec = filter.fast_convolution_segmented(data.data, data.Fs, int(2 ** 24))
+        # dump compdata to pk file in retrace folder
+        # RETRACE STEP 1
+        #numpy_compdata = cp.asnumpy(compdata)
+        # print(numpy_compdata)
+
+        with open('./original_data/matched_filter.pk', 'wb') as handle:
+            pk.dump(compdata, handle)
+            handle.close()
         # the returned spectrum spec has no significance here (is the spectrum of the last segment processed)
         # store range compressed signal
         data.set_range_compressed_data(compdata)
