@@ -1,5 +1,7 @@
 import matplotlib.pyplot as plt
-from numba import prange, jit
+from numba import prange, jit, cuda, prange, complex64
+import numba
+import math
 from numpy import fft
 from tqdm import tqdm
 import pickle as pk
@@ -141,6 +143,40 @@ def rcmc(range_doppler_matrix, range_doppler_matrix_rcmc, t_range_axis, Fs, prf,
                         np.pi * Fs * (tm - t_n / Fs))
             range_doppler_matrix_rcmc[ll, rr] = point_r + 1j * point_i
     return range_doppler_matrix_rcmc
+@cuda.jit
+def rcmc_cuda(range_doppler_matrix, range_doppler_matrix_rcmc, t_range_axis, Fs, prf, v_sat, cc, lamb_c, rate, doppler_axis):
+    # Get the thread index
+    rr, ll = cuda.grid(2)
+    # Get the total number of range bins and lines
+    tot_bins = range_doppler_matrix.shape[1]
+    tot_lines = range_doppler_matrix.shape[0]
+
+    # Check if the thread index is within the range
+    if rr < tot_bins and ll < tot_lines:
+        # range reference
+        r_bin = t_range_axis[rr]
+    
+        # the range migration is
+        vts = (doppler_axis[ll] ** 2 * r_bin ** 2) / (4 * v_sat ** 2 / lamb_c ** 2 - doppler_axis[ll] ** 2)
+        rm = math.sqrt(r_bin ** 2 + vts) - doppler_axis[ll] * cc / (2 * rate)
+        # the associated delay in fast time is
+        tm = (2 * rm / cc) % (1 / prf)
+        # the closest fast time bin is
+        t_idx = math.ceil(tm * Fs)
+        # the interpolation will be performed using n bins
+        n_interp = 128
+        point_r = 0
+        point_i = 0
+        # performing the interpolation
+        for n in range(int(-n_interp / 2), int(n_interp / 2)):
+            # the fast time bin to include in the interpolation is
+            t_n = int((t_idx + n) % tot_bins)
+            # the sum argument for the interpolation is then:
+            pi_arg = math.pi * Fs * (tm - t_n / Fs)
+            sin_arg = math.sin(pi_arg) / (pi_arg)
+            point_r += range_doppler_matrix[ll, t_n].real * sin_arg
+            point_i += range_doppler_matrix[ll, t_n].imag * sin_arg
+        range_doppler_matrix_rcmc[ll, rr] = point_r + 1j * point_i
 
 
 ########################################### CLASSES ###################################
@@ -315,8 +351,31 @@ class RangeDopplerCompressor:
         :param doppler_range_compressed_matrix: matrix containing range compressed data in the azimuth frequency domain
         :return: rcmc'ed martrix
         """
-        matrix_rcmc = 1j * np.zeros((self.data.rows_num, self.data.columns_num))
-        matrix_rcmc = rcmc(cp.asnumpy(doppler_range_compressed_matrix),
+
+
+        # # CUDA IMPLEMENTATION
+        # Set the CUDA kernel configuration
+        threads_per_block = (32, 32)
+        blocks_per_grid_x = int(cp.ceil(doppler_range_compressed_matrix.shape[1] / threads_per_block[0]))
+        blocks_per_grid_y = int(cp.ceil(doppler_range_compressed_matrix.shape[0] / threads_per_block[1]))
+        blocks_per_grid = (blocks_per_grid_x, blocks_per_grid_y)
+        doppler_axis = cp.linspace(-self.radar.prf / 2,
+                                    (1 - 1 / len(doppler_range_compressed_matrix[:, 0])) * self.radar.prf / 2,
+                                    len(doppler_range_compressed_matrix[:, 0]))
+        foffset = cp.ceil(self.doppler_centroid / self.radar.prf) * self.radar.prf
+        doppler_axis += foffset
+        # wrapped around freq axis
+        doppler_axis_out = cp.where(doppler_axis > self.doppler_centroid + self.radar.prf / 2)
+        if len(doppler_axis_out) != 0:
+            doppler_axis[doppler_axis_out] -= self.radar.prf
+            doppler_axis_out = cp.where(doppler_axis < self.doppler_centroid - self.radar.prf / 2)
+        if len(doppler_axis_out) != 0:
+            doppler_axis[doppler_axis_out] += self.radar.prf
+        matrix_rcmc = 1j * cp.zeros((self.data.rows_num, self.data.columns_num))
+
+        
+
+        rcmc_cuda[blocks_per_grid, threads_per_block](doppler_range_compressed_matrix,
                            matrix_rcmc,
                            self.get_true_range_axis(),
                            self.Fs,
@@ -325,7 +384,21 @@ class RangeDopplerCompressor:
                            self.c,
                            self.c / self.radar.fc,
                            self.radar.pulse.rate,
-                           self.doppler_centroid)
+                           doppler_axis)
+
+        cuda.synchronize()
+        # # NON CUDA IMPLEMENTATION
+        # matrix_rcmc = 1j * np.zeros((self.data.rows_num, self.data.columns_num))
+        # matrix_rcmc = rcmc(doppler_range_compressed_matrix,
+        #                    matrix_rcmc,
+        #                    self.get_true_range_axis(),
+        #                    self.Fs,
+        #                    self.radar.prf,
+        #                    self.radar.geometry.abs_v,
+        #                    self.c,
+        #                    self.c / self.radar.fc,
+        #                    self.radar.pulse.rate,
+        #                    self.doppler_centroid)
         return matrix_rcmc
 
     def pattern_equalization(self, range_doppler_reconstructed_matrix):
@@ -393,11 +466,9 @@ class RangeDopplerCompressor:
 
         # RETRACE STEP 3
 
-        with open('./original_data/rcmc.pk', 'wb') as handle:
+        with open('./retrace_data/rcmc.pk', 'wb') as handle:
             pk.dump(cp.asnumpy(doppler_range_compressed_matrix), handle)
             handle.close()
-
-
         self.data.set_doppler_range_compressed_matrix_rcmc(doppler_range_compressed_matrix_rcmc)
         # dump data and free memory
         self.data.dump_doppler_range_compressed_matrix()
