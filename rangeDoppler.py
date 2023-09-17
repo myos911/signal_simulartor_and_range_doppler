@@ -469,6 +469,7 @@ class RangeDopplerCompressor:
         with open('./retrace_data/rcmc.pk', 'wb') as handle:
             pk.dump(cp.asnumpy(doppler_range_compressed_matrix), handle)
             handle.close()
+
         self.data.set_doppler_range_compressed_matrix_rcmc(doppler_range_compressed_matrix_rcmc)
         # dump data and free memory
         self.data.dump_doppler_range_compressed_matrix()
@@ -482,7 +483,9 @@ class RangeDopplerCompressor:
         print('3/4 performing azimuth filtering')
         print(" -creating azimuth filter matrix")
         self.doppler_axis, self.azimuth_filter_matrix = self.create_azimuth_filter_matrix(linearFMapproximation=False)
-        doppler_range_image_matrix = doppler_range_compressed_matrix_rcmc * self.azimuth_filter_matrix
+        output_asarray = cp.asnumpy(doppler_range_compressed_matrix_rcmc)
+        doppler_range_image_matrix =  output_asarray* self.azimuth_filter_matrix
+     
 
         # 3.1 pattern equalization
         if patternequ:
@@ -494,7 +497,10 @@ class RangeDopplerCompressor:
             doppler_window = np.where(np.abs(self.doppler_axis - self.doppler_centroid) <= doppler_bandwidth / 2, 1, 0)
             # apply the window
             doppler_range_image_matrix = doppler_range_image_matrix * doppler_window[:, np.newaxis]
-
+        # RETRACE STEP 4
+        with open('./original_data/azimuth_filter4.pk', 'wb') as handle:
+            pk.dump(cp.asnumpy(doppler_range_image_matrix), handle)
+            handle.close()
         # dump and free memory
         self.data.dump_doppler_range_compressed_matrix_rcmc()
         del doppler_range_compressed_matrix_rcmc
@@ -508,6 +514,10 @@ class RangeDopplerCompressor:
         # 4 ifft
         print('4/4 performing azimuth ifft')
         outimage = self.azimuth_ifft(doppler_range_image_matrix)
+        # RETRACE STEP 5
+        with open('./original_data/azimuth_ifft.pk', 'wb') as handle:
+            pk.dump(cp.asnumpy(outimage), handle)
+            handle.close()
         # dump free and set memory
         self.data.set_reconstructed_image(outimage)
         self.data.dump_range_doppler_reconstructed_image()

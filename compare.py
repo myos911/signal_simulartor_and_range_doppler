@@ -4,8 +4,8 @@
 import pickle as pk
 import numpy as np
 
-file1 = './original_data/rcmc.pk'
-file2 = './retrace_data/rcmc.pk'
+file1 = './original_data/azimuth_filter4.pk'
+file2 = './retrace_data/azimuth_filter4.pk'
 
 
 # open the files
