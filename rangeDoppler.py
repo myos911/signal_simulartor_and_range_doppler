@@ -421,7 +421,7 @@ class RangeDopplerCompressor:
 
         # RETRACE STEP 4
         with open('./original_data/azimuth_filter4.pk', 'wb') as handle:
-            pk.dump(doppler_range_compressed_matrix_rcmc, handle)
+            pk.dump(doppler_range_image_matrix, handle)
             handle.close()
 
         # dump and free memory
@@ -438,7 +438,7 @@ class RangeDopplerCompressor:
         print('4/4 performing azimuth ifft')
         outimage = self.azimuth_ifft(doppler_range_image_matrix)
         # dump free and set memory
-        # RETRACE STEP 4
+        # RETRACE STEP 5
         with open('./original_data/azimuth_ifft.pk', 'wb') as handle:
             pk.dump(outimage, handle)
             handle.close()
