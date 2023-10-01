@@ -22,7 +22,7 @@ from radarGPU import RadarGPU
 # ___________________________________________ Classes ______________________________________________
 
 class ChannelGPU:
-    def __init__(self, channel_cpu: Channel):
+    def __init__(self, channel_cpu: Channel, is_dumping: bool):
         
         # First, copy the radar over to the GPU
         radarGPU = RadarGPU(channel_cpu.radar)
@@ -32,6 +32,8 @@ class ChannelGPU:
         self.targets_cnt = channel_cpu.targets_cnt  # number of targets in the list
         self.c = channel_cpu.c  # m/s speed of light in the medium (changing this allows for accounting different
         # propagation media or mechanisms e.g. mechanical waves)
+
+        self.is_dumping = is_dumping # GLOBAL TOGGLE FROM scriptedsympyr
 
     def add_target(self, target: PointTarget):
         """
@@ -275,14 +277,18 @@ class ChannelGPU:
       print("Performing matched filter fast convolution")
       # the maximum segment size is set to be 2^22
       compdata, spec = filter.fast_convolution_segmented_gpu(data.data, data.Fs, int(2 ** 24))
-      # dump compdata to pk file in retrace folder
-      # RETRACE STEP 1
-      numpy_compdata = cp.asnumpy(compdata)
-      # print(numpy_compdata)
+    
       
-      with open('./retrace_data/matched_filter.pk', 'wb') as handle:
-        pk.dump(numpy_compdata, handle)
-        handle.close()
+      if (self.is_dumping):
+        # dump compdata to pk file in retrace folder
+        # RETRACE STEP 1
+        numpy_compdata = cp.asnumpy(compdata)
+        # print(numpy_compdata)
+        with open('./retrace_data/matched_filter.pk', 'wb') as handle:
+            pk.dump(numpy_compdata, handle)
+            handle.close()
+    
+
 
       # the returned spectrum spec has no significance here (is the spectrum of the last segment processed)
       # store range compressed signal

@@ -98,8 +98,6 @@ def az_filter_matrix(filter_matrix, t_range_axis, speed, lamb_c, B, prf, doppler
     return doppler_axis, filter_matrix
 
 def az_filter_matrix_cpu(filter_matrix, t_range_axis, speed, lamb_c, B, prf, doppler_centroid, linearfmapprox):
-    print(doppler_centroid.dtype)
-    print(t_range_axis.dtype)
     if len(filter_matrix[:, 0]) % 2 == 0:
         # this is only valid if we have an even number of samples
         doppler_axis = np.linspace(-prf / 2,
@@ -111,12 +109,8 @@ def az_filter_matrix_cpu(filter_matrix, t_range_axis, speed, lamb_c, B, prf, dop
                                    prf / 2,
                                    len(filter_matrix[:, 0]))
 
-    print(doppler_axis.dtype)
-
     # this tells us which replica of the spectrum we are looking at
     foffset = np.ceil(doppler_centroid / prf) * prf
-
-    print("OFFSET: ", foffset)
 
     # print("foffset in filter matrix", foffset)
     # this centers the axis on the correct replica
@@ -266,7 +260,7 @@ def rcmc_cuda(range_doppler_matrix, range_doppler_matrix_rcmc, t_range_axis, Fs,
 
 ########################################### CLASSES ###################################
 class RangeDopplerCompressor:
-    def __init__(self, channel: ChannelGPU, data: DataGPU):
+    def __init__(self, channel: ChannelGPU, data: DataGPU, is_dumping: bool):
         # radar class used for the raw data simulation
         self.radar = channel.radar
         self.c = channel.c
@@ -293,6 +287,8 @@ class RangeDopplerCompressor:
 
         # creating empty range-doppler filter matrix
         self.azimuth_filter_matrix = None  # self.create_azimuth_filter_matrix()
+
+        self.is_dumping = is_dumping # GLOBAL TOGGLE FROM scriptedsympyr
 
     # SETTERS
 
@@ -357,8 +353,6 @@ class RangeDopplerCompressor:
             dc_cpu,
             linearFMapproximation
         )
-        print(self.doppler_axis)
-        print(self.azimuth_filter_matrix)
 
         return cp.asarray(self.doppler_axis), cp.asarray(self.azimuth_filter_matrix)
 
@@ -545,6 +539,13 @@ class RangeDopplerCompressor:
         # return reconstructed image
         return outimage
 
+    def dump_cupy_array_as_numpy(self, file_path: str, cupy_array: cp.ndarray):
+        if (self.is_dumping): 
+            print('DUMPING DATA - ', file_path)
+            with open(file_path, 'wb') as handle:
+                pk.dump(cp.asnumpy(cupy_array), handle)
+                handle.close()
+
     def azimuth_compression(self, doppler_bandwidth=0, patternequ=True):
         """
         performs all the steps and records intermediate results in the data class
@@ -561,11 +562,9 @@ class RangeDopplerCompressor:
         # 1 azimuth fft
         print('1/4 performing azimuth fft')
         doppler_range_compressed_matrix = self.azimuth_fft(self.data.data_range_matrix)
+        
         # RETRACE STEP 2
-
-        with open('./retrace_data/azimuth_fft.pk', 'wb') as handle:
-            pk.dump(cp.asnumpy(doppler_range_compressed_matrix), handle)
-            handle.close()
+        self.dump_cupy_array_as_numpy('./retrace_data/azimuth_fft.pk', doppler_range_compressed_matrix)
 
         # dump raw data and free memory
         self.data.dump_rx_data()
@@ -582,10 +581,7 @@ class RangeDopplerCompressor:
         doppler_range_compressed_matrix_rcmc = self.rcmc(doppler_range_compressed_matrix)
 
         # RETRACE STEP 3
-
-        with open('./retrace_data/rcmc.pk', 'wb') as handle:
-            pk.dump(cp.asnumpy(doppler_range_compressed_matrix_rcmc), handle)
-            handle.close()
+        self.dump_cupy_array_as_numpy('./retrace_data/rcmc.pk', doppler_range_compressed_matrix_rcmc)
 
         self.data.set_doppler_range_compressed_matrix_rcmc(doppler_range_compressed_matrix_rcmc)
         # dump data and free memory
@@ -600,9 +596,6 @@ class RangeDopplerCompressor:
         print('3/4 performing azimuth filtering')
         print(" -creating azimuth filter matrix")
         self.doppler_axis, self.azimuth_filter_matrix = self.create_azimuth_filter_matrix(linearFMapproximation=False)
-        print('doppler axis',self.doppler_axis)
-        print('filter matrix',self.azimuth_filter_matrix)
-
         
         #output_asarray = cp.asnumpy(doppler_range_compressed_matrix_rcmc)
         doppler_range_image_matrix =  doppler_range_compressed_matrix_rcmc * self.azimuth_filter_matrix
@@ -620,10 +613,10 @@ class RangeDopplerCompressor:
             doppler_window = cp.where(cp.abs(self.doppler_axis - self.doppler_centroid) <= doppler_bandwidth / 2, 1, 0)
             # apply the window
             doppler_range_image_matrix = doppler_range_image_matrix * doppler_window[:, cp.newaxis]
+        
         # RETRACE STEP 4
-        with open('./retrace_data/azimuth_filter4.pk', 'wb') as handle:
-            pk.dump(cp.asnumpy(doppler_range_image_matrix), handle)
-            handle.close()
+        self.dump_cupy_array_as_numpy('./retrace_data/azimuth_filter4.pk', doppler_range_image_matrix)
+        
         # dump and free memory
         self.data.dump_doppler_range_compressed_matrix_rcmc()
         del doppler_range_compressed_matrix_rcmc
@@ -637,10 +630,10 @@ class RangeDopplerCompressor:
         # 4 ifft
         print('4/4 performing azimuth ifft')
         outimage = self.azimuth_ifft(doppler_range_image_matrix)
+        
         # RETRACE STEP 5
-        with open('./retrace_data/azimuth_ifft.pk', 'wb') as handle:
-            pk.dump(cp.asnumpy(outimage), handle)
-            handle.close()
+        self.dump_cupy_array_as_numpy('./retrace_data/azimuth_ifft.pk', outimage)
+        
         # dump free and set memory
         self.data.set_reconstructed_image(outimage)
         self.data.dump_range_doppler_reconstructed_image()
