@@ -34,6 +34,12 @@ import cupy as cp
 from sar_design_equations import adjust_prf_to_looking_angle, prf_to_ground_swath
 
 def main(is_dumping, is_plotting):
+
+    if is_plotting:
+        print("Plotting is enabled.")
+    if is_dumping:
+        print("data_dumping is enabled.")
+    
     startTime = time.time()
     # when set to true, the input data is read from a file
     # otherwise it is generated
