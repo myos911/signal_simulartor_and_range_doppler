@@ -4,33 +4,33 @@ import tracemalloc
 from functools import partial
 from threading import Thread
 import pickle as pk
+
 import numpy as np
+import cupy as cp
 from numba import njit, jit, prange
 from tqdm import tqdm
-import cupy as cp
 
 from dataMatrix import Data
+from dataMatrixGPU import DataGPU
 from matchedFilter import MatchedFilter
 from pointTarget import PointTarget, TargetData
 from radar import Radar
 from utils import sph2cart, cart2sph
-
+from channel import Channel
+from radarGPU import RadarGPU
 
 # ___________________________________________ Classes ______________________________________________
 
-class Channel:
-    def __init__(self, radar: Radar):
-        """
-        Class containing both the radar and the targets.
-        it provides methods to generate the raw signal back-scattered from the point targets
-        according to the radar parameters.
-        It must be interfaced with a Data class instance to get the time axis and save the simulation outputs.
-        :param radar: Radar object to be used for the simulation
-        """
-        self.radar = radar  # radar object
-        self.target = []  # empty list of targets
-        self.targets_cnt = 0  # number of targets in the list
-        self.c = 299792458.0  # m/s speed of light in the medium (changing this allows for accounting different
+class ChannelGPU:
+    def __init__(self, channel_cpu: Channel):
+        
+        # First, copy the radar over to the GPU
+        radarGPU = RadarGPU(channel_cpu.radar)
+
+        self.radar = radarGPU   # radar object
+        self.target = channel_cpu.target  # empty list of targets
+        self.targets_cnt = channel_cpu.targets_cnt  # number of targets in the list
+        self.c = channel_cpu.c  # m/s speed of light in the medium (changing this allows for accounting different
         # propagation media or mechanisms e.g. mechanical waves)
 
     def add_target(self, target: PointTarget):
@@ -90,7 +90,7 @@ class Channel:
         return np.abs(self.radar.antenna.get_gain_at_lcs_point(
             position))  # this should be faster, it uses jit functions
 
-    def raw_signal_generator(self, data: Data, t_min, t_max, save_targets_data: bool = True,
+    def raw_signal_generator(self, data: DataGPU, t_min, t_max, save_targets_data: bool = True,
                              target_data_path: str = "./Target_Data/", osf=10):
         """
         generate the raw signal, note the impulse bandwidth has to be setted before
@@ -263,30 +263,30 @@ class Channel:
     #     # return time ax and raw signal
     #     return t, x_rx
 
-    def filter_raw_signal(self, data: Data):
-        """
-        perform time matched filtering
-        :param data:
-        :return:
-        """
-        # create filter object
-        filter = MatchedFilter(self.radar.pulse)
-        # filter signal
-        print("Performing matched filter fast convolution")
-        # the maximum segment size is set to be 2^22
-        compdata, spec = filter.fast_convolution_segmented_gpu((data.data), data.Fs, int(2 ** 24))
-        # dump compdata to pk file in retrace folder
-        # RETRACE STEP 1
-        numpy_compdata = cp.asnumpy(compdata)
-        # print(numpy_compdata)
-        
-        with open('./retrace_data/matched_filter.pk', 'wb') as handle:
-            pk.dump(numpy_compdata, handle)
-            handle.close()
+    def filter_raw_signal(self, data: DataGPU):
+      """
+      perform time matched filtering
+      :param data:
+      :return:
+      """
+      # create filter object
+      filter = MatchedFilter(self.radar.pulse)
+      # filter signal
+      print("Performing matched filter fast convolution")
+      # the maximum segment size is set to be 2^22
+      compdata, spec = filter.fast_convolution_segmented_gpu(data.data, data.Fs, int(2 ** 24))
+      # dump compdata to pk file in retrace folder
+      # RETRACE STEP 1
+      numpy_compdata = cp.asnumpy(compdata)
+      # print(numpy_compdata)
+      
+      with open('./retrace_data/matched_filter.pk', 'wb') as handle:
+        pk.dump(numpy_compdata, handle)
+        handle.close()
 
-        # the returned spectrum spec has no significance here (is the spectrum of the last segment processed)
-        # store range compressed signal
-        data.set_range_compressed_data(compdata)
+      # the returned spectrum spec has no significance here (is the spectrum of the last segment processed)
+      # store range compressed signal
+      data.set_range_compressed_data(compdata)
 
 
 ######################################## SELF TEST #####################################

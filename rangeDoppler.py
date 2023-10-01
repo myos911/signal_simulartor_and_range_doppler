@@ -10,6 +10,8 @@ import cupy as cp
 
 from channel import Channel
 from dataMatrix import Data
+from channelGPU import ChannelGPU
+from dataMatrixGPU import DataGPU
 from interpolator_v2 import sphere_interp
 from radar import Radar
 import numpy as np
@@ -21,6 +23,8 @@ from utils import meshSph2cart, mesh_lcs_to_gcs, mesh_doppler_to_azimuth, mesh_a
 # create filter matrix
 # @jit(nopython=True, parallel=True)
 def az_filter_matrix(filter_matrix, t_range_axis, speed, lamb_c, B, prf, doppler_centroid, linearfmapprox):
+    print(doppler_centroid.dtype)
+    print(t_range_axis.dtype)
     if len(filter_matrix[:, 0]) % 2 == 0:
         # this is only valid if we have an even number of samples
         doppler_axis = cp.linspace(-prf / 2,
@@ -31,9 +35,14 @@ def az_filter_matrix(filter_matrix, t_range_axis, speed, lamb_c, B, prf, doppler
         doppler_axis = cp.linspace(-prf / 2,
                                    prf / 2,
                                    len(filter_matrix[:, 0]))
+    print(doppler_axis.dtype)
 
     # this tells us which replica of the spectrum we are looking at
     foffset = cp.ceil(doppler_centroid / prf) * prf
+
+    print("G_OFFSET: ", foffset)
+
+
     # print("foffset in filter matrix", foffset)
     # this centers the axis on the correct replica
     doppler_axis += foffset
@@ -84,6 +93,82 @@ def az_filter_matrix(filter_matrix, t_range_axis, speed, lamb_c, B, prf, doppler
                              cp.sqrt(1 - lamb_c ** 2 * doppler_axis ** 2 / (4 * speed ** 2))    # doppler shift phase removal
                              - cp.pi / 4                                                        # constant phase
                              - 4 * cp.pi * frng * doppler_axis / c))                            # residual inter-pulse doppler shift removal
+        # that's a column of the matrix
+        filter_matrix[:, rr] = G
+    return doppler_axis, filter_matrix
+
+def az_filter_matrix_cpu(filter_matrix, t_range_axis, speed, lamb_c, B, prf, doppler_centroid, linearfmapprox):
+    print(doppler_centroid.dtype)
+    print(t_range_axis.dtype)
+    if len(filter_matrix[:, 0]) % 2 == 0:
+        # this is only valid if we have an even number of samples
+        doppler_axis = np.linspace(-prf / 2,
+                                   (1 - 1 / len(filter_matrix[:, 0])) * prf / 2,
+                                   len(filter_matrix[:, 0]))
+    else:
+        # this is for the case we have a odd number of samples (always)
+        doppler_axis = np.linspace(-prf / 2,
+                                   prf / 2,
+                                   len(filter_matrix[:, 0]))
+
+    print(doppler_axis.dtype)
+
+    # this tells us which replica of the spectrum we are looking at
+    foffset = np.ceil(doppler_centroid / prf) * prf
+
+    print("OFFSET: ", foffset)
+
+    # print("foffset in filter matrix", foffset)
+    # this centers the axis on the correct replica
+    doppler_axis += foffset
+    # this wraps around the freq axis to make sure we are filtering the power from the correct replica even if the
+    # doppler centroid is not perfectly centered in the axis
+    doppler_axis_out = np.where(doppler_axis > doppler_centroid + prf / 2)
+    if len(doppler_axis_out) != 0:
+        doppler_axis[doppler_axis_out] -= prf
+        doppler_axis_out = np.where(doppler_axis < doppler_centroid - prf / 2)
+    if len(doppler_axis_out) != 0:
+        doppler_axis[doppler_axis_out] += prf
+    # wrapped around range axis and fast time
+    c = 299792458  # m/s
+    f_range_axis = t_range_axis % (c / (2 * prf))
+    # for every possible range bin
+    tot_bins = len(filter_matrix[0, :])
+    for rr in tqdm(range(tot_bins)):
+        # the range is
+        rng = t_range_axis[rr]
+        # false range
+        frng = f_range_axis[rr]
+        Ka = - 2 / lamb_c * speed ** 2 / rng
+        if linearfmapprox == True:
+            # uncomment one of the following:
+            # -> filter with range bin phase removal
+            # G = 2/B * np.sqrt(2 * np.abs(Ka)) * np.exp(- 1j * np.pi / 4) * np.exp(1j * 4 * np.pi * rng / lamb_c) \
+            # * np.exp(1j * np.pi * doppler_axis **2 / Ka)
+            # -> filter with amplitude normalization
+            # G = np.sqrt(np.abs(Ka)) / B * np.exp(-1j * np.pi / 4) * \
+            #    np.exp(1j * np.pi * doppler_axis ** 2 / Ka)
+            # -> filter without amplitude normalization
+            G = np.exp(-1j * np.pi / 4) \
+                * np.exp(1j * np.pi * doppler_axis ** 2 / Ka) \
+                * np.exp(1j * + 4 * np.pi * frng * doppler_axis / c)
+        else:
+            # filter that uses non linear FM POSP approximation ( with range bin phase removal)
+            # -> filter with actual posp amplitude normalization)
+            # norm = (4 * speed ** 2 - doppler_axis ** 2 * lamb_c ** 2) ** (3 / 4) / np.sqrt(4 * lamb_c * speed * rng)
+            # G = norm * np.sqrt(np.abs(Ka)) * np.exp(1j * (4 * np.pi * rng / lamb_c *
+            #                                        np.sqrt(1 - lamb_c ** 2 * doppler_axis ** 2 / (4 * speed ** 2))
+            #                                        + np.pi / 4))
+            # -> filter with some amplitude normalization)
+            # G = np.sqrt(np.abs(Ka)) * np.exp(1j * (4 * np.pi * rng / lamb_c *
+            #                                        np.sqrt(1 - lamb_c ** 2 * doppler_axis ** 2 / (4 * speed ** 2))
+            #                                        + np.pi / 4))
+            # -> filter without amplitude normalization ( with range bin phase removal)
+
+            G = np.exp(1j * (4 * np.pi * rng / lamb_c *                                         # range bin center phase
+                             np.sqrt(1 - lamb_c ** 2 * doppler_axis ** 2 / (4 * speed ** 2))    # doppler shift phase removal
+                             - np.pi / 4                                                        # constant phase
+                             - 4 * np.pi * frng * doppler_axis / c))                            # residual inter-pulse doppler shift removal
         # that's a column of the matrix
         filter_matrix[:, rr] = G
     return doppler_axis, filter_matrix
@@ -181,7 +266,7 @@ def rcmc_cuda(range_doppler_matrix, range_doppler_matrix_rcmc, t_range_axis, Fs,
 
 ########################################### CLASSES ###################################
 class RangeDopplerCompressor:
-    def __init__(self, channel: Channel, data: Data):
+    def __init__(self, channel: ChannelGPU, data: DataGPU):
         # radar class used for the raw data simulation
         self.radar = channel.radar
         self.c = channel.c
@@ -194,13 +279,14 @@ class RangeDopplerCompressor:
 
         # dopplercentroid calculated assuming the antenna pattern symmetric
         gamma = channel.radar.geometry.forward_squint_angle
+   
         self.doppler_centroid = 2 * self.radar.geometry.abs_v * \
-                                self.radar.fc * np.sin(gamma) / self.c
+                                self.radar.fc * cp.sin(gamma) / self.c
 
         # find the beam center range
         beta = self.radar.geometry.side_looking_angle
         height = self.radar.geometry.S_0[2]
-        self.r_0 = (height / np.cos(beta))
+        self.r_0 = (height / cp.cos(beta))
 
         # true fast time axis and enveloped time axis
         self.time_ax, self.true_fast_time_axis = self.set_true_time_ax()
@@ -215,11 +301,11 @@ class RangeDopplerCompressor:
         the true delay associated to a target on graund at closest approach point
         :return:  time_ax (pri-enveloped time), true_time_axis
         """
-        self.time_ax = np.linspace(0,
+        self.time_ax = cp.linspace(0,
                                    (1 / self.radar.prf) - (1 / self.Fs),
-                                   int(np.round(self.Fs / self.radar.prf)))
+                                   int(cp.round(self.Fs / self.radar.prf)))
         # delay at the first range bin
-        min_delay = np.floor((self.r_0 * 2 / self.c) *
+        min_delay = cp.floor((self.r_0 * 2 / self.c) *
                              self.radar.prf) / self.radar.prf
         self.true_fast_time_axis = self.time_ax + min_delay
         return self.time_ax, self.true_fast_time_axis
@@ -239,18 +325,42 @@ class RangeDopplerCompressor:
         :param: linearFMapproximation Use the linear FM approx for the azimuth filter or the non-linear POSP one
         :return: filter matrix
         """
-        self.azimuth_filter_matrix = 1j * cp.zeros((self.data.rows_num, self.data.columns_num))
-        self.doppler_axis, self.azimuth_filter_matrix = az_filter_matrix(
+
+        # GPU Version
+        # self.azimuth_filter_matrix = 1j * cp.zeros((self.data.rows_num, self.data.columns_num))
+        # self.doppler_axis, self.azimuth_filter_matrix = az_filter_matrix(
+        #     self.azimuth_filter_matrix,
+        #     self.get_true_range_axis(),
+        #     self.radar.geometry.abs_v,
+        #     self.c / self.radar.fc,
+        #     self.radar.pulse.get_bandwidth(),
+        #     self.radar.prf,
+        #     self.doppler_centroid,
+        #     linearFMapproximation
+        # )
+        # return self.doppler_axis, self.azimuth_filter_matrix
+
+        # CPU VERSION
+        self.azimuth_filter_matrix = 1j * np.zeros((self.data.rows_num, self.data.columns_num))
+
+        tra_cpu = cp.asnumpy(self.get_true_range_axis())
+
+        dc_cpu = cp.asnumpy(self.doppler_centroid)
+
+        self.doppler_axis, self.azimuth_filter_matrix = az_filter_matrix_cpu(
             self.azimuth_filter_matrix,
-            self.get_true_range_axis(),
+            tra_cpu,
             self.radar.geometry.abs_v,
             self.c / self.radar.fc,
             self.radar.pulse.get_bandwidth(),
             self.radar.prf,
-            self.doppler_centroid,
+            dc_cpu,
             linearFMapproximation
         )
-        return self.doppler_axis, self.azimuth_filter_matrix
+        print(self.doppler_axis)
+        print(self.azimuth_filter_matrix)
+
+        return cp.asarray(self.doppler_axis), cp.asarray(self.azimuth_filter_matrix)
 
     def create_azimuth_equalization_matrix(self, range_axis, doppler_axis):
         """
@@ -260,11 +370,11 @@ class RangeDopplerCompressor:
         :return: the filter matrix
         """
         # define a range doppler grid
-        R, D = np.meshgrid(range_axis, doppler_axis)
+        R, D = cp.meshgrid(range_axis, doppler_axis)
         # R as it is is the enveloped range, we need the true range so:
         midswath_range = self.radar.geometry.get_broadside_on_ground()
-        midswath_range = self.radar.geometry.get_lcs_of_point(midswath_range, np.zeros(1))
-        midswath_range = np.linalg.norm(midswath_range)
+        midswath_range = self.radar.geometry.get_lcs_of_point(midswath_range, cp.zeros(1))
+        midswath_range = cp.linalg.norm(midswath_range)
         pri_offset = int(self.radar.prf * midswath_range * 2 / self.c)
         range_offset = pri_offset * self.c / (2 * self.radar.prf)
         R += range_offset
@@ -274,20 +384,20 @@ class RangeDopplerCompressor:
         # transform to ground gcs points
         X, Y = mesh_azimuth_range_to_ground_gcs(R, A, self.radar.geometry.velocity, self.radar.geometry.S_0)
         # transform to lcs points
-        X, Y, Z = mesh_gcs_to_lcs(X, Y, np.zeros_like(X), self.radar.geometry.Bc2s, self.radar.geometry.S_0)
+        X, Y, Z = mesh_gcs_to_lcs(X, Y, cp.zeros_like(X), self.radar.geometry.Bc2s, self.radar.geometry.S_0)
         # transform to spherical
         R1, T, P = meshCart2sph(X, Y, Z)
-        P = np.where(P < 0, np.pi * 2 + P, P)
+        P = cp.where(P < 0, cp.pi * 2 + P, P)
         # find pattern over grid need a spherical interpolator method for meshgrids
-        self.r_d_gain = 1j * np.zeros_like(np.ravel(T))
-        self.r_d_gain = sphere_interp(np.ravel(T),
-                                      np.ravel(P),
+        self.r_d_gain = 1j * cp.zeros_like(cp.ravel(T))
+        self.r_d_gain = sphere_interp(cp.ravel(T),
+                                      cp.ravel(P),
                                       self.radar.antenna.theta_ax,
                                       self.radar.antenna.phi_ax,
                                       self.radar.antenna.gain_matrix,
                                       self.r_d_gain)
         self.r_d_gain = self.r_d_gain.reshape(T.shape) \
-                        * np.sqrt(4 * self.c / self.radar.fc * self.radar.geometry.abs_v * R) / \
+                        * cp.sqrt(4 * self.c / self.radar.fc * self.radar.geometry.abs_v * R) / \
                         ((4 * self.radar.geometry.abs_v ** 2 - D ** 2 * self.c ** 2 / self.radar.fc ** 2) ** (3 / 4))
 
         return self.r_d_gain
@@ -310,23 +420,23 @@ class RangeDopplerCompressor:
         """
         if self.data.rows_num % 2 == 0:
             # this is only valid if we have an even number of samples
-            doppler_axis = np.linspace(-self.radar.prf / 2,
+            doppler_axis = cp.linspace(-self.radar.prf / 2,
                                        (1 - 1 / self.data.rows_num) * self.radar.prf / 2,
                                        self.data.rows_num)
         else:
             # this is for the case we have a odd number of samples (always)
-            doppler_axis = np.linspace(-self.radar.prf / 2,
+            doppler_axis = cp.linspace(-self.radar.prf / 2,
                                        self.radar.prf / 2,
                                        self.data.rows_num)
 
-        foffset = np.ceil(doppler_centroid / self.radar.prf) * self.radar.prf
+        foffset = cp.ceil(doppler_centroid / self.radar.prf) * self.radar.prf
         # print("foffset in filter matrix", foffset)
         doppler_axis += foffset
         # wrapped around freq axis
-        doppler_axis_out = np.where(doppler_axis > doppler_centroid + self.radar.prf / 2)
+        doppler_axis_out = cp.where(doppler_axis > doppler_centroid + self.radar.prf / 2)
         if len(doppler_axis_out) != 0:
             doppler_axis[doppler_axis_out] -= self.radar.prf
-            doppler_axis_out = np.where(doppler_axis < doppler_centroid - self.radar.prf / 2)
+            doppler_axis_out = cp.where(doppler_axis < doppler_centroid - self.radar.prf / 2)
         if len(doppler_axis_out) != 0:
             doppler_axis[doppler_axis_out] += self.radar.prf
 
@@ -388,19 +498,25 @@ class RangeDopplerCompressor:
                            doppler_axis)
 
         cuda.synchronize()
+        return matrix_rcmc
         # # NON CUDA IMPLEMENTATION
+        
+        # doppler_range_compressed_matrix_cpu = cp.asnumpy(doppler_range_compressed_matrix)
+        # tra_cpu = cp.asnumpy(self.get_true_range_axis())
+        # doppler_centroid_cpu = cp.asnumpy(self.doppler_centroid)
+
         # matrix_rcmc = 1j * np.zeros((self.data.rows_num, self.data.columns_num))
-        # matrix_rcmc = rcmc(doppler_range_compressed_matrix,
+        # matrix_rcmc = rcmc(doppler_range_compressed_matrix_cpu,
         #                    matrix_rcmc,
-        #                    self.get_true_range_axis(),
+        #                    tra_cpu,
         #                    self.Fs,
         #                    self.radar.prf,
         #                    self.radar.geometry.abs_v,
         #                    self.c,
         #                    self.c / self.radar.fc,
         #                    self.radar.pulse.rate,
-        #                    self.doppler_centroid)
-        return matrix_rcmc
+        #                    doppler_centroid_cpu)
+        # return cp.asarray(matrix_rcmc)
 
     def pattern_equalization(self, range_doppler_reconstructed_matrix):
         # estimate the antenna gain projected on ground
@@ -448,7 +564,7 @@ class RangeDopplerCompressor:
         # RETRACE STEP 2
 
         with open('./retrace_data/azimuth_fft.pk', 'wb') as handle:
-            pk.dump(doppler_range_compressed_matrix, handle)
+            pk.dump(cp.asnumpy(doppler_range_compressed_matrix), handle)
             handle.close()
 
         # dump raw data and free memory
@@ -468,7 +584,7 @@ class RangeDopplerCompressor:
         # RETRACE STEP 3
 
         with open('./retrace_data/rcmc.pk', 'wb') as handle:
-            pk.dump(cp.asnumpy(doppler_range_compressed_matrix), handle)
+            pk.dump(cp.asnumpy(doppler_range_compressed_matrix_rcmc), handle)
             handle.close()
 
         self.data.set_doppler_range_compressed_matrix_rcmc(doppler_range_compressed_matrix_rcmc)
@@ -484,20 +600,26 @@ class RangeDopplerCompressor:
         print('3/4 performing azimuth filtering')
         print(" -creating azimuth filter matrix")
         self.doppler_axis, self.azimuth_filter_matrix = self.create_azimuth_filter_matrix(linearFMapproximation=False)
+        print('doppler axis',self.doppler_axis)
+        print('filter matrix',self.azimuth_filter_matrix)
+
+        
         #output_asarray = cp.asnumpy(doppler_range_compressed_matrix_rcmc)
-        doppler_range_image_matrix =  doppler_range_compressed_matrix_rcmc* self.azimuth_filter_matrix
-     
+        doppler_range_image_matrix =  doppler_range_compressed_matrix_rcmc * self.azimuth_filter_matrix
 
         # 3.1 pattern equalization
         if patternequ:
+            print("patternequ ")
             doppler_range_image_matrix = self.pattern_equalization(doppler_range_image_matrix)
 
         # 3.2 doppler windowing
         if doppler_bandwidth != 0:
+            print("runnign doppler windowing ")
+
             # matrix line window
-            doppler_window = np.where(np.abs(self.doppler_axis - self.doppler_centroid) <= doppler_bandwidth / 2, 1, 0)
+            doppler_window = cp.where(cp.abs(self.doppler_axis - self.doppler_centroid) <= doppler_bandwidth / 2, 1, 0)
             # apply the window
-            doppler_range_image_matrix = doppler_range_image_matrix * doppler_window[:, np.newaxis]
+            doppler_range_image_matrix = doppler_range_image_matrix * doppler_window[:, cp.newaxis]
         # RETRACE STEP 4
         with open('./retrace_data/azimuth_filter4.pk', 'wb') as handle:
             pk.dump(cp.asnumpy(doppler_range_image_matrix), handle)

@@ -14,17 +14,20 @@ import os
 import time 
 import cProfile, pstats
 from channel import Channel
+from channelGPU import ChannelGPU
 from radar import Radar
 from pointTarget import PointTarget
 from dataMatrix import Data
+from dataMatrixGPU import DataGPU
 from rangeDoppler import RangeDopplerCompressor
 import pickle as pk
 
 # py modules
 import numpy as np
+import cupy as cp 
 
 # switch for plotting
-ifplot = True
+ifplot = False
 
 # %%
 # 0 -  SIMULATOR SETTINGS
@@ -199,10 +202,17 @@ profiler = cProfile.Profile()
 profiler.enable()
 # applying the compression filter to the simulated signal
 # moved from step 3 to step 4
-channel.filter_raw_signal(data)
-rangedop = RangeDopplerCompressor(channel, data)
+
+# TRANSFER TO GPU
+data_gpu = DataGPU(data)
+channel_gpu = ChannelGPU(channel)
+
+channel_gpu.filter_raw_signal(data_gpu)
+rangedop = RangeDopplerCompressor(channel_gpu, data_gpu)
 # compress the image
-outimage = rangedop.azimuth_compression(doppler_bandwidth=doppler_bandwidth, patternequ=False)
+outimage_gpu = rangedop.azimuth_compression(doppler_bandwidth=doppler_bandwidth, patternequ=False)
+outimage = cp.asnumpy(outimage_gpu)
+print(type(outimage))
 print(outimage)
 # dump outimage to pk file
 filename = './Simulation_Data/correct_outimage.pk'
