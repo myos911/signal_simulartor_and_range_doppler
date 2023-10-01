@@ -27,16 +27,13 @@ import argparse
 import numpy as np
 import cupy as cp 
 
-# switch for plotting
-ifplot = False
-
 # %%
 # 0 -  SIMULATOR SETTINGS
 
 # creating the radar object
 from sar_design_equations import adjust_prf_to_looking_angle, prf_to_ground_swath
 
-def main(is_dumping):
+def main(is_dumping, is_plotting):
     startTime = time.time()
     # when set to true, the input data is read from a file
     # otherwise it is generated
@@ -213,20 +210,13 @@ def main(is_dumping):
     rangedop = RangeDopplerCompressor(channel_gpu, data_gpu, is_dumping)
     # compress the image
     outimage_gpu = rangedop.azimuth_compression(doppler_bandwidth=doppler_bandwidth, patternequ=False)
+    
+    # Transfer result back to CPU 
     outimage = cp.asnumpy(outimage_gpu)
-    print(type(outimage))
-    print(outimage)
-    # dump outimage to pk file
-    filename = './Simulation_Data/correct_outimage.pk'
-    os.makedirs(os.path.dirname(filename), exist_ok=True)
-    with open('./Simulation_Data/correct_outimage.pk', 'wb') as handle:
-        pk.dump(outimage, handle)
-        handle.close()
-
 
     # %%
 
-    if ifplot:
+    if is_plotting:
         import matplotlib.pyplot as plt
 
         fig, ax = plt.subplots(1)
@@ -245,8 +235,9 @@ def main(is_dumping):
 if __name__ == "__main__":
 
     # Adds the ability to dump the core algorithm (rangeDoppler)
-    parser = argparse.ArgumentParser(description="Run the SAR simulator with dumping control.")
+    parser = argparse.ArgumentParser(description="Run the SAR simulator with dumping and plotting control.")
     parser.add_argument("--dump-data", action="store_true", help="Enable data dumping")
+    parser.add_argument("--plot", action="store_true", help="Enable plotting")
     args = parser.parse_args()
     
-    main(args.dump_data)
+    main(args.dump_data, args.plot)
