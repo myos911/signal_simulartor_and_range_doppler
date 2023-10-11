@@ -31,8 +31,7 @@ class TestRangeDoppler(unittest.TestCase):
         
         cls.tolerance = 1E-6 # Set the tolerance threshold (e.g., 1E-6)
         
-        # Run the algorithm
-        is_running_algorithm = False
+        is_running_algorithm = True
         if is_running_algorithm:
             print('Running algorithm... Please wait...')
             result = subprocess.run(["python3.8", "scriptedsympyr.py", "--dump-data"], capture_output=True, text=True)
@@ -51,7 +50,7 @@ class TestRangeDoppler(unittest.TestCase):
         self.assertEqual(retrace_step1_matched_filter.shape, self.original_step1_matched_filter.shape)
         self.assertTrue(np.all(absolute_difference <= self.tolerance))
     
-    def test_step2_matched_filter(self):
+    def test_step2_azimuth_fft(self):
 
         # Load the dump
         retrace_step2_azimuth_fft = load_dump('./retrace_data/azimuth_fft.pk')
@@ -87,4 +86,4 @@ class TestRangeDoppler(unittest.TestCase):
         self.assertTrue(np.all(absolute_difference <= self.tolerance))
           
 if __name__ == '__main__':
-  unittest.main()
+    unittest.main()

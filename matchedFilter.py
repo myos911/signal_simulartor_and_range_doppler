@@ -123,7 +123,7 @@ class MatchedFilter:
         y = cp.zeros_like(x)
         # block processing
         print("segmented matched filtering progress:")
-        for i in tqdm(range(int(seg_num))):
+        for i in range(int(seg_num)):
             # current segment
             x_i = x[int(i * segment_sample_size): int( min(tot_size, segment_sample_size * (i+1)))]
             # pad

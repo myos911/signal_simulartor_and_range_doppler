@@ -4,8 +4,8 @@
 import pickle as pk
 import numpy as np
 
-file1 = './original_data/step4_filter_matrix.pk'
-file2 = './retrace_data/step4_filter_matrix.pk'
+file1 = './original_data/azimuth_filter4.pk'
+file2 = './retrace_data/azimuth_filter4.pk'
 
 
 # open the files
@@ -35,4 +35,4 @@ print('count of values where diff > 0.0000001: ', np.sum(diff > 0.000001))
 print('length: ', len(pk1))
 
 # print relative diff
-print('max relative diff: ', np.max(diff/np.abs(pk1)))
+print('max relative diff: ', np.max(diff/(np.abs(pk1)+1E-16)))

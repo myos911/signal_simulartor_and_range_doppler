@@ -207,7 +207,19 @@ def main(is_dumping, is_plotting):
     profiler.enable()
     # applying the compression filter to the simulated signal
     # moved from step 3 to step 4
+    
+    # if is_plotting:
+    #     import matplotlib.pyplot as plt
 
+    #     fig, ax = plt.subplots(1)
+    #     c = ax.pcolormesh(data.get_fast_time_axis(), data.get_slow_time_axis(), np.abs(data.data_matrix).astype(np.float32),
+    #                 shading='auto', cmap=plt.get_cmap('hot'))
+    #     fig.colorbar(c)
+
+    #     fig.tight_layout()
+    #     plt.show()
+    #     quit()
+    
     # TRANSFER TO GPU
     data_gpu = DataGPU(data)
     channel_gpu = ChannelGPU(channel, is_dumping)
@@ -234,7 +246,7 @@ def main(is_dumping, is_plotting):
         plt.show()
 
     profiler.disable()
-    stats = pstats.Stats(profiler).sort_stats('tottime').print_stats(30)
+    stats = pstats.Stats(profiler).sort_stats('tottime').print_stats(50)
     endTime=time.time()
     print("Total time: ", endTime-startTime, " seconds")
 

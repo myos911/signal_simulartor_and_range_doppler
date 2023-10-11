@@ -1,9 +1,9 @@
 import matplotlib.pyplot as plt
-from numba import prange, jit, cuda, prange, complex64
+from numba import prange, jit, cuda, prange, complex64, float64
 import numba
 import math
+import cmath
 from numpy import fft
-from tqdm import tqdm
 import pickle as pk
 import tracemalloc
 import cupy as cp
@@ -59,7 +59,7 @@ def az_filter_matrix(filter_matrix, t_range_axis, speed, lamb_c, B, prf, doppler
     f_range_axis = t_range_axis % (c / (2 * prf))
     # for every possible range bin
     tot_bins = len(filter_matrix[0, :])
-    for rr in tqdm(range(tot_bins)):
+    for rr in range(tot_bins):
         # the range is
         rng = t_range_axis[rr]
         # false range
@@ -97,6 +97,28 @@ def az_filter_matrix(filter_matrix, t_range_axis, speed, lamb_c, B, prf, doppler
         filter_matrix[:, rr] = G
     return doppler_axis, filter_matrix
 
+
+@cuda.jit
+def az_filter_matrix_kernel(filter_matrix, doppler_axis, c, t_range_axis, f_range_axis, lamb_c, speed, linearfmapprox):
+    rr = cuda.grid(1)
+    if rr < filter_matrix.shape[1]:
+        rng = t_range_axis[rr]
+        frng = f_range_axis[rr]
+        Ka = - 2 / lamb_c * speed ** 2 / rng
+        for dd in range(filter_matrix.shape[0]):
+            doppler_val = float64(doppler_axis[dd])
+            pi = float64(cmath.pi)
+            if linearfmapprox:
+                G = cmath.exp(-1j * pi / 4) \
+                    * cmath.exp(1j * pi * doppler_val ** 2 / Ka) \
+                    * cmath.exp(1j * 4 * pi * frng * doppler_val / c)
+            else:
+                G = cmath.exp(1j * float64(4 * pi * rng / lamb_c *
+                                    math.sqrt(1 - lamb_c ** 2 * doppler_val ** 2 / (4 * speed ** 2))
+                                    - pi / 4
+                                    - 4 * pi * frng * doppler_val / c))
+            filter_matrix[dd, rr] = G
+
 def az_filter_matrix_cpu(filter_matrix, t_range_axis, speed, lamb_c, B, prf, doppler_centroid, linearfmapprox):
     if len(filter_matrix[:, 0]) % 2 == 0:
         # this is only valid if we have an even number of samples
@@ -128,37 +150,17 @@ def az_filter_matrix_cpu(filter_matrix, t_range_axis, speed, lamb_c, B, prf, dop
     f_range_axis = t_range_axis % (c / (2 * prf))
     # for every possible range bin
     tot_bins = len(filter_matrix[0, :])
-    for rr in tqdm(range(tot_bins)):
+    for rr in range(tot_bins):
         # the range is
         rng = t_range_axis[rr]
         # false range
         frng = f_range_axis[rr]
         Ka = - 2 / lamb_c * speed ** 2 / rng
         if linearfmapprox == True:
-            # uncomment one of the following:
-            # -> filter with range bin phase removal
-            # G = 2/B * np.sqrt(2 * np.abs(Ka)) * np.exp(- 1j * np.pi / 4) * np.exp(1j * 4 * np.pi * rng / lamb_c) \
-            # * np.exp(1j * np.pi * doppler_axis **2 / Ka)
-            # -> filter with amplitude normalization
-            # G = np.sqrt(np.abs(Ka)) / B * np.exp(-1j * np.pi / 4) * \
-            #    np.exp(1j * np.pi * doppler_axis ** 2 / Ka)
-            # -> filter without amplitude normalization
             G = np.exp(-1j * np.pi / 4) \
                 * np.exp(1j * np.pi * doppler_axis ** 2 / Ka) \
                 * np.exp(1j * + 4 * np.pi * frng * doppler_axis / c)
         else:
-            # filter that uses non linear FM POSP approximation ( with range bin phase removal)
-            # -> filter with actual posp amplitude normalization)
-            # norm = (4 * speed ** 2 - doppler_axis ** 2 * lamb_c ** 2) ** (3 / 4) / np.sqrt(4 * lamb_c * speed * rng)
-            # G = norm * np.sqrt(np.abs(Ka)) * np.exp(1j * (4 * np.pi * rng / lamb_c *
-            #                                        np.sqrt(1 - lamb_c ** 2 * doppler_axis ** 2 / (4 * speed ** 2))
-            #                                        + np.pi / 4))
-            # -> filter with some amplitude normalization)
-            # G = np.sqrt(np.abs(Ka)) * np.exp(1j * (4 * np.pi * rng / lamb_c *
-            #                                        np.sqrt(1 - lamb_c ** 2 * doppler_axis ** 2 / (4 * speed ** 2))
-            #                                        + np.pi / 4))
-            # -> filter without amplitude normalization ( with range bin phase removal)
-
             G = np.exp(1j * (4 * np.pi * rng / lamb_c *                                         # range bin center phase
                              np.sqrt(1 - lamb_c ** 2 * doppler_axis ** 2 / (4 * speed ** 2))    # doppler shift phase removal
                              - np.pi / 4                                                        # constant phase
@@ -166,7 +168,6 @@ def az_filter_matrix_cpu(filter_matrix, t_range_axis, speed, lamb_c, B, prf, dop
         # that's a column of the matrix
         filter_matrix[:, rr] = G
     return doppler_axis, filter_matrix
-
 
 # frequency range wak including the doppler error in the impulse compression peak point
 @jit(nopython=True)
@@ -222,6 +223,7 @@ def rcmc(range_doppler_matrix, range_doppler_matrix_rcmc, t_range_axis, Fs, prf,
                         np.pi * Fs * (tm - t_n / Fs))
             range_doppler_matrix_rcmc[ll, rr] = point_r + 1j * point_i
     return range_doppler_matrix_rcmc
+
 @cuda.jit
 def rcmc_cuda(range_doppler_matrix, range_doppler_matrix_rcmc, t_range_axis, Fs, prf, v_sat, cc, lamb_c, rate, doppler_axis):
     # Get the thread index
@@ -257,6 +259,181 @@ def rcmc_cuda(range_doppler_matrix, range_doppler_matrix_rcmc, t_range_axis, Fs,
             point_i += range_doppler_matrix[ll, t_n].imag * sin_arg
         range_doppler_matrix_rcmc[ll, rr] = point_r + 1j * point_i
 
+@numba.jit
+def interpolate_and_sum(range_doppler_matrix_real, range_doppler_matrix_imag, t_idx, tot_bins, tm, n_interp, Fs):
+    point_r = 0
+    point_i = 0
+
+    for n in range(-n_interp // 2, n_interp // 2):
+        t_n = (t_idx + n) % tot_bins
+        pi_arg = math.pi * Fs * (tm - t_n / Fs)
+        if pi_arg != 0:
+            sinc_value = math.sin(pi_arg) / pi_arg
+        else:
+            sinc_value = 1.0  # Handle sinc(0)
+        
+        rd_real = range_doppler_matrix_real[int(t_n)]
+        rd_imag = range_doppler_matrix_imag[int(t_n)]
+
+        point_r += rd_real * sinc_value
+        point_i += rd_imag * sinc_value
+
+    return point_r, point_i
+
+@cuda.jit
+def rcmc_cuda_optimized1(range_doppler_matrix, range_doppler_matrix_rcmc, t_range_axis, Fs, prf, v_sat, cc, lamb_c, rate, doppler_axis):
+    rr, ll = cuda.grid(2)
+    tot_bins = range_doppler_matrix.shape[1]
+    tot_lines = range_doppler_matrix.shape[0]
+
+    if rr < tot_bins and ll < tot_lines:
+        r_bin = t_range_axis[rr]
+        vts = (doppler_axis[ll] ** 2 * r_bin ** 2) / (4 * v_sat ** 2 / lamb_c ** 2 - doppler_axis[ll] ** 2)
+        rm = math.sqrt(r_bin ** 2 + vts) - doppler_axis[ll] * cc / (2 * rate)
+        tm = (2 * rm / cc) % (1 / prf)
+        t_idx = math.ceil(tm * Fs)
+
+        n_interp = 128
+
+        # Calculate the starting and ending indices for interpolation
+        # CLOSE
+        # start_idx = int(max(t_idx - 64, 0))
+        # end_idx = int(min(t_idx + 64 - 1 , tot_bins))
+        # TEST        
+        start_idx = int((t_idx - 64) % tot_bins)
+        end_idx = int((t_idx + 64 - 1) % tot_bins) 
+
+        point_r = 0
+        point_i = 0
+
+        for t_n in cuda.prange(start_idx, end_idx + 1):
+            rd_real = range_doppler_matrix[ll, int(t_n)].real
+            rd_imag = range_doppler_matrix[ll, int(t_n)].imag
+
+            pi_arg = math.pi * Fs * (tm - t_n / Fs)
+            sinc_value = math.sin(pi_arg) / (pi_arg)
+
+            point_r += rd_real * sinc_value
+            point_i += rd_imag * sinc_value
+
+        range_doppler_matrix_rcmc[ll, rr] = point_r + 1j * point_i
+@cuda.jit
+def rcmc_cuda_optimized2(range_doppler_matrix, range_doppler_matrix_rcmc, t_range_axis, Fs, prf, v_sat, cc, lamb_c, rate, doppler_axis):
+    rr, ll = cuda.grid(2)
+    tot_bins = range_doppler_matrix.shape[1]
+    tot_lines = range_doppler_matrix.shape[0]
+    
+    if rr < tot_bins and ll < tot_lines:
+        # range reference
+        r_bin = t_range_axis[rr]
+    
+        # the range migration is
+        vts = (doppler_axis[ll] ** 2 * r_bin ** 2) / (4 * v_sat ** 2 / lamb_c ** 2 - doppler_axis[ll] ** 2)
+        rm = math.sqrt(r_bin ** 2 + vts) - doppler_axis[ll] * cc / (2 * rate)
+        # the associated delay in fast time is
+        tm = (2 * rm / cc) % (1 / prf)
+        # the closest fast time bin is
+        t_idx = math.ceil(tm * Fs)
+        # the interpolation will be performed using n bins
+        n_interp = 32
+        point_r = 0
+        point_i = 0
+        TILE_SIZE = 32
+        # Allocate shared memory for range_doppler_matrix slices
+        shared_matrix = cuda.shared.array(shape=(TILE_SIZE, TILE_SIZE), dtype=complex64)
+        
+        for n in range(int(-n_interp / 2), int(n_interp / 2)):
+            t_n = int((t_idx + n) % tot_bins)
+            if n < TILE_SIZE:
+                shared_matrix[ll % TILE_SIZE, t_n % TILE_SIZE] = range_doppler_matrix[ll, t_n]
+            cuda.syncthreads()
+
+            shared_value = shared_matrix[ll % TILE_SIZE, t_n % TILE_SIZE]
+
+            sin_arg = math.sin(math.pi * Fs * (tm - t_n / Fs)) / (math.pi * Fs * (tm - t_n / Fs))
+            point_r += shared_value.real * sin_arg
+            point_i += shared_value.imag * sin_arg
+            cuda.syncthreads()
+        
+        range_doppler_matrix_rcmc[ll, rr] = complex64(point_r + 1j * point_i)
+
+@cuda.jit
+def rcmc_cuda_optimized3(range_doppler_matrix, range_doppler_matrix_rcmc, t_range_axis, Fs, prf, v_sat, cc, lamb_c, rate, doppler_axis):
+    rr, ll = cuda.grid(2)
+    tot_bins = range_doppler_matrix.shape[1]
+    tot_lines = range_doppler_matrix.shape[0]
+    
+    if rr < tot_bins and ll < tot_lines:
+        # range reference
+        r_bin = t_range_axis[rr]
+    
+        # the range migration is
+        vts = (doppler_axis[ll] ** 2 * r_bin ** 2) / (4 * v_sat ** 2 / lamb_c ** 2 - doppler_axis[ll] ** 2)
+        rm = math.sqrt(r_bin ** 2 + vts) - doppler_axis[ll] * cc / (2 * rate)
+        # the associated delay in fast time is
+        tm = (2 * rm / cc) % (1 / prf)
+        # the closest fast time bin is
+        t_idx = math.ceil(tm * Fs)
+        # the interpolation will be performed using n bins
+        n_interp = 128
+        point_r = 0
+        point_i = 0
+        
+        shared_matrix = cuda.shared.array(shape=(32, 32), dtype=complex64)
+        
+        t_n_base = (t_idx - n_interp // 2) % tot_bins
+        
+        for n in range(32):
+            t_n = (t_n_base + n) % tot_bins
+            shared_matrix[ll % 32, n] = range_doppler_matrix[ll, t_n]
+        
+        cuda.syncthreads()
+
+        for n in range(int(-n_interp / 2), int(n_interp / 2)):
+            sin_arg = math.sin(math.pi * Fs * (tm - (t_idx + n) / Fs)) / (math.pi * Fs * (tm - (t_idx + n) / Fs))
+            point_r += shared_matrix[ll % 32, (n + n_interp // 2) % 32].real * sin_arg
+            point_i += shared_matrix[ll % 32, (n + n_interp // 2) % 32].imag * sin_arg
+
+        range_doppler_matrix_rcmc[ll, rr] = complex64(point_r + 1j * point_i)
+
+@cuda.jit
+def rcmc_cuda_shared(range_doppler_matrix, range_doppler_matrix_rcmc, t_range_axis, Fs, prf, v_sat, cc, lamb_c, rate, doppler_axis):
+    # Get the thread index
+    rr, ll = cuda.grid(2)
+    # Get the total number of range bins and lines
+    tot_bins = range_doppler_matrix.shape[1]
+    tot_lines = range_doppler_matrix.shape[0]
+
+    # Check if the thread index is within the range
+    if rr < tot_bins and ll < tot_lines:
+        # range reference
+        r_bin = t_range_axis[rr]
+    
+        # the range migration is
+        vts = (doppler_axis[ll] ** 2 * r_bin ** 2) / (4 * v_sat ** 2 / lamb_c ** 2 - doppler_axis[ll] ** 2)
+        rm = math.sqrt(r_bin ** 2 + vts) - doppler_axis[ll] * cc / (2 * rate)
+        # the associated delay in fast time is
+        tm = (2 * rm / cc) % (1 / prf)
+        # the closest fast time bin is
+        t_idx = math.ceil(tm * Fs)
+        # the interpolation will be performed using n bins
+        n_interp = 128
+        point_r = 0
+        point_i = 0
+
+        shared_range_doppler_matrix = cuda.shared.array(shape=(32, tot_bins), dtype=complex64)
+        shared_range_doppler_matrix[ll, rr] = range_doppler_matrix[ll, rr]
+        cuda.syncthreads()
+        # performing the interpolation
+        for n in range(-64, 64):
+            # the fast time bin to include in the interpolation is
+            t_n = int((t_idx + n) % tot_bins)
+            # the sum argument for the interpolation is then:
+            pi_arg = math.pi * Fs * (tm - t_n / Fs)
+            sin_arg = math.sin(pi_arg) / (pi_arg)
+            point_r += shared_range_doppler_matrix[ll, t_n].real * sin_arg
+            point_i += shared_range_doppler_matrix[ll, t_n].imag * sin_arg
+        range_doppler_matrix_rcmc[ll, rr] = point_r + 1j * point_i
 
 ########################################### CLASSES ###################################
 class RangeDopplerCompressor:
@@ -324,17 +501,55 @@ class RangeDopplerCompressor:
 
         # GPU Version
         # self.azimuth_filter_matrix = 1j * cp.zeros((self.data.rows_num, self.data.columns_num))
-        # self.doppler_axis, self.azimuth_filter_matrix = az_filter_matrix(
+
+        # rows = self.azimuth_filter_matrix.shape[0]
+        # cols = self.azimuth_filter_matrix.shape[1]
+
+        # prf = self.radar.prf
+
+        # if rows % 2 == 0:
+        #     # this is only valid if we have an even number of samples
+        #     doppler_axis = cp.linspace(-prf / 2,
+        #                             (1 - 1 / rows) * prf / 2,
+        #                             rows)
+        # else:
+        #     # this is for the case we have a odd number of samples (always)
+        #     doppler_axis = cp.linspace(-prf / 2,
+        #                             prf / 2,
+        #                             rows)
+
+        # foffset = cp.ceil(self.doppler_centroid / prf) * prf
+        # doppler_axis += foffset
+        # doppler_axis_out = cp.where(doppler_axis > self.doppler_centroid + prf / 2)
+        # if len(doppler_axis_out) != 0:
+        #     doppler_axis[doppler_axis_out] -= prf
+        #     doppler_axis_out = cp.where(doppler_axis < self.doppler_centroid - prf / 2)
+        # if len(doppler_axis_out) != 0:
+        #     doppler_axis[doppler_axis_out] += prf
+    
+        # c = 299792458  # m/s
+        # t_range_axis = self.get_true_range_axis()
+        # f_range_axis = t_range_axis % (c / (2 * prf))
+
+        # lamb_c = self.c / self.radar.fc
+        # speed = self.radar.geometry.abs_v
+
+        # # Define grid and block dimensions
+        # threads_per_block = (256,)  # 1D grid, so only one dimension
+        # blocks_per_grid_x = int(cp.ceil(self.azimuth_filter_matrix.shape[1] / threads_per_block[0]))
+        # blocks_per_grid = (blocks_per_grid_x,)
+        # az_filter_matrix_kernel[blocks_per_grid, threads_per_block](
         #     self.azimuth_filter_matrix,
-        #     self.get_true_range_axis(),
-        #     self.radar.geometry.abs_v,
-        #     self.c / self.radar.fc,
-        #     self.radar.pulse.get_bandwidth(),
-        #     self.radar.prf,
-        #     self.doppler_centroid,
-        #     linearFMapproximation
+        #     doppler_axis,
+        #     float64(c),
+        #     t_range_axis,
+        #     f_range_axis,
+        #     float64(lamb_c), 
+        #     float64(speed),
+        #     linearFMapproximation, 
         # )
-        # return self.doppler_axis, self.azimuth_filter_matrix
+        # cuda.synchronize()
+        # return doppler_axis, self.azimuth_filter_matrix
 
         # CPU VERSION
         self.azimuth_filter_matrix = 1j * np.zeros((self.data.rows_num, self.data.columns_num))
@@ -477,8 +692,6 @@ class RangeDopplerCompressor:
         if len(doppler_axis_out) != 0:
             doppler_axis[doppler_axis_out] += self.radar.prf
         matrix_rcmc = 1j * cp.zeros((self.data.rows_num, self.data.columns_num))
-
-        
 
         rcmc_cuda[blocks_per_grid, threads_per_block](doppler_range_compressed_matrix,
                            matrix_rcmc,
