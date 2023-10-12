@@ -26,7 +26,7 @@ diff = np.abs(pk1 - pk2)
 print('pk1 - pk2: ', diff)
 
 # print max diff
-print('max diff: ', np.max(diff))
+print('max absolute diff: ', np.max(diff))
 
 # print count of values where diff >0.01
 print('count of values where diff > 0.0000001: ', np.sum(diff > 0.000001))
