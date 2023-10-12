@@ -29,10 +29,30 @@ print('pk1 - pk2: ', diff)
 print('max absolute diff: ', np.max(diff))
 
 # print count of values where diff >0.01
-print('count of values where diff > 0.0000001: ', np.sum(diff > 0.000001))
+print('count of values where diff > 0.0000001: ', np.sum(diff > 1E-6))
 
 # print length
 print('length: ', len(pk1))
 
 # print relative diff
 print('max relative diff: ', np.max(diff/(np.abs(pk1)+1E-16)))
+
+
+def mean_absolute_error(pk1, pk2):
+    return np.mean(np.abs(pk1 - pk2))
+
+def root_mean_squared_error(pk1, pk2):
+    return np.sqrt(np.mean(np.square(pk1 - pk2)))
+
+
+def phase_correlation(pk1, pk2):
+    cross_power_spectrum = np.conj(pk1) * pk2
+    phase_correlation_map = np.fft.ifft2(cross_power_spectrum / (np.abs(pk1) * np.abs(pk2) + 1E-16))
+    return np.max(phase_correlation_map)
+
+
+mae = mean_absolute_error(pk1, pk2)
+rmse = root_mean_squared_error(pk1, pk2)
+print('mae: ', mae)
+print('rmse: ', rmse)
+# print('phase_corr', phase_correlation(pk÷1, pk2))
