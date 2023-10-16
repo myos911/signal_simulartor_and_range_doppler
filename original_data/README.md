@@ -4,7 +4,7 @@ This folder is where the original data created by the unoptimised version of the
 These dumps are too large to be tracked by git, and are hence not in the initial repository. 
 
 ## Populating via Copy-Paste
-GitHub does not allow files that are over a certain size. In order to populate this file, you must  from the project compendium folder called `original_data`. Please copy and paste the following files into this folder:
+GitHub does not allow files that are over a certain size. In order to populate this file, you must paste in the correct files from the project compendium folder called `original_data`. Please copy and paste the following files into this folder:
 * `matched_filter.pk` - Encapsulates Step 1 of Range Doppler (Range Comrpession)
 * `azimuth_fft.pk` - Encapsulates Step 2 of Range Doppler (Azimuth FFT)
 * `rcmc.pk` - Encapsulates Step 3 of Range Doppler (RCMC)

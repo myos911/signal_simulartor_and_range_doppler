@@ -6,7 +6,7 @@ These dumps are too large to be tracked by git, and are hence not in the initial
 ## Option A: Populating via running the algorithm
 In order to populate this file, please enter the following in terminal (whilst in the repository root folder):
 ```
-python3.8 scriptedsympyr.py --dump
+python3.8 scriptedsympyr.py --dump-data
 ```
 
 This will run the exisiting Range-Doppler algorithm inside this repository, and populate this folder. 
@@ -14,7 +14,7 @@ This will run the exisiting Range-Doppler algorithm inside this repository, and 
 ## Option B: Populating via running tests
 Alternatively, you can run:
 ```
-python3.8 test-output.py
+python3.8 test_output.py
 ```
 **However,** this requires that the folder `original_data` is also populated. Please refer to `original_data/README.md` for instructions on how to populate this. 
 
