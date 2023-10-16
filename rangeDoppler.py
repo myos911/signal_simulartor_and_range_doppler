@@ -554,10 +554,12 @@ class RangeDopplerCompressor:
         blocks_per_grid_x = int(cp.ceil(doppler_range_compressed_matrix.shape[1] / threads_per_block[0]))
         blocks_per_grid_y = int(cp.ceil(doppler_range_compressed_matrix.shape[0] / threads_per_block[1]))
         blocks_per_grid = (blocks_per_grid_x, blocks_per_grid_y)
-        doppler_axis = cp.linspace(-self.radar.prf / 2, (1 - 1 / len(doppler_range_compressed_matrix[:, 0])) * self.radar.prf / 2,len(doppler_range_compressed_matrix[:, 0]))
+        doppler_axis = cp.linspace(-self.radar.prf / 2,
+                                    (1 - 1 / len(doppler_range_compressed_matrix[:, 0])) * self.radar.prf / 2,
+                                    len(doppler_range_compressed_matrix[:, 0]))
         foffset = cp.ceil(self.doppler_centroid / self.radar.prf) * self.radar.prf
         doppler_axis += foffset
-
+        # wrapped around freq axis
         doppler_axis_out = cp.where(doppler_axis > self.doppler_centroid + self.radar.prf / 2)
         if len(doppler_axis_out) != 0:
             doppler_axis[doppler_axis_out] -= self.radar.prf
@@ -566,7 +568,7 @@ class RangeDopplerCompressor:
             doppler_axis[doppler_axis_out] += self.radar.prf
         matrix_rcmc = 1j * cp.zeros((self.data.rows_num, self.data.columns_num))
 
-        rcmc_cuda_shared[blocks_per_grid, threads_per_block](doppler_range_compressed_matrix,
+        rcmc_cuda[blocks_per_grid, threads_per_block](doppler_range_compressed_matrix,
                            matrix_rcmc,
                            self.get_true_range_axis(),
                            self.Fs,
@@ -650,7 +652,7 @@ class RangeDopplerCompressor:
         doppler_range_compressed_matrix = self.azimuth_fft(self.data.data_range_matrix)
         
         # RETRACE STEP 2
-        self.dump_cupy_array_as_numpy('./retrace_data/azimuth_fft.pk', doppler_range_compressed_matrix)
+        self.dump_cupy_array_as_numpy('./optimised_data/azimuth_fft.pk', doppler_range_compressed_matrix)
 
         # dump raw data and free memory
         self.data.dump_rx_data()
@@ -667,7 +669,7 @@ class RangeDopplerCompressor:
         doppler_range_compressed_matrix_rcmc = self.rcmc(doppler_range_compressed_matrix)
 
         # RETRACE STEP 3
-        self.dump_cupy_array_as_numpy('./retrace_data/rcmc.pk', doppler_range_compressed_matrix_rcmc)
+        self.dump_cupy_array_as_numpy('./optimised_data/rcmc.pk', doppler_range_compressed_matrix_rcmc)
 
         self.data.set_doppler_range_compressed_matrix_rcmc(doppler_range_compressed_matrix_rcmc)
         # dump data and free memory
@@ -701,7 +703,7 @@ class RangeDopplerCompressor:
             doppler_range_image_matrix = doppler_range_image_matrix * doppler_window[:, cp.newaxis]
         
         # RETRACE STEP 4
-        self.dump_cupy_array_as_numpy('./retrace_data/azimuth_filter4.pk', doppler_range_image_matrix)
+        self.dump_cupy_array_as_numpy('./optimised_data/azimuth_filter.pk', doppler_range_image_matrix)
         
         # dump and free memory
         self.data.dump_doppler_range_compressed_matrix_rcmc()
@@ -718,7 +720,7 @@ class RangeDopplerCompressor:
         outimage = self.azimuth_ifft(doppler_range_image_matrix)
         
         # RETRACE STEP 5
-        self.dump_cupy_array_as_numpy('./retrace_data/azimuth_ifft.pk', outimage)
+        self.dump_cupy_array_as_numpy('./optimised_data/azimuth_ifft.pk', outimage)
         
         # dump free and set memory
         self.data.set_reconstructed_image(outimage)

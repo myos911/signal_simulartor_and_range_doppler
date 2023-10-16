@@ -26,7 +26,7 @@ class TestRangeDoppler(unittest.TestCase):
         cls.original_step1_matched_filter = load_dump('./original_data/matched_filter.pk')
         cls.original_step2_azimuth_fft = load_dump('./original_data/azimuth_fft.pk')
         cls.original_step3_rcmc = load_dump('./original_data/rcmc.pk')
-        cls.original_step4_azmiuth_filter = load_dump('./original_data/azimuth_filter4.pk')
+        cls.original_step4_azmiuth_filter = load_dump('./original_data/azimuth_filter.pk')
         cls.original_step5_azmiuth_ifft = load_dump('./original_data/azimuth_ifft.pk')
         
         cls.tolerance = 1E-6 # Set the tolerance threshold (e.g., 1E-6)
@@ -37,12 +37,12 @@ class TestRangeDoppler(unittest.TestCase):
             result = subprocess.run(["python3.8", "scriptedsympyr.py", "--dump-data"], capture_output=True, text=True)
             print('SUCCESSFUL RUN?: ', result.returncode == 0)
         else:
-            print('Algorithm execution is disabled. Using most recent retrace_data dump')
+            print('Algorithm execution is disabled. Using most recent optimised_data dump')
 
     def test_step1_matched_filter(self):
 
         # Load the dump
-        retrace_step1_matched_filter = load_dump('./retrace_data/matched_filter.pk')
+        retrace_step1_matched_filter = load_dump('./optimised_data/matched_filter.pk')
 
         absolute_difference = np.abs(retrace_step1_matched_filter - self.original_step1_matched_filter)
 
@@ -53,7 +53,7 @@ class TestRangeDoppler(unittest.TestCase):
     def test_step2_azimuth_fft(self):
 
         # Load the dump
-        retrace_step2_azimuth_fft = load_dump('./retrace_data/azimuth_fft.pk')
+        retrace_step2_azimuth_fft = load_dump('./optimised_data/azimuth_fft.pk')
         absolute_difference = np.abs(retrace_step2_azimuth_fft - self.original_step2_azimuth_fft)
         # Check if all elements in the relative difference array are within the tolerance
         self.assertEqual(retrace_step2_azimuth_fft.shape, self.original_step2_azimuth_fft.shape)
@@ -62,7 +62,7 @@ class TestRangeDoppler(unittest.TestCase):
     def test_step3_rcmc(self):
 
         # Load the dump
-        retrace_step3_rcmc = load_dump('./retrace_data/rcmc.pk')
+        retrace_step3_rcmc = load_dump('./optimised_data/rcmc.pk')
         absolute_difference = np.abs(retrace_step3_rcmc - self.original_step3_rcmc)
         # Check if all elements in the relative difference array are within the tolerance
         self.assertEqual(retrace_step3_rcmc.shape, self.original_step3_rcmc.shape)
@@ -71,7 +71,7 @@ class TestRangeDoppler(unittest.TestCase):
     def test_step4_azimuth_filter(self):
 
         # Load the dump
-        retrace_step4_azmiuth_filter = load_dump('./retrace_data/azimuth_filter4.pk')
+        retrace_step4_azmiuth_filter = load_dump('./optimised_data/azimuth_filter.pk')
         absolute_difference = np.abs(retrace_step4_azmiuth_filter - self.original_step4_azmiuth_filter)
         # Check if all elements in the relative difference array are within the tolerance
         self.assertEqual(retrace_step4_azmiuth_filter.shape, self.original_step4_azmiuth_filter.shape)
@@ -79,7 +79,7 @@ class TestRangeDoppler(unittest.TestCase):
 
     def test_step5_azmiuth_ifft(self):
         # Load the dump
-        retrace_step5_azmiuth_ifft = load_dump('./retrace_data/azimuth_ifft.pk')
+        retrace_step5_azmiuth_ifft = load_dump('./optimised_data/azimuth_ifft.pk')
         absolute_difference = np.abs(retrace_step5_azmiuth_ifft - self.original_step5_azmiuth_ifft)
         # Check if all elements in the relative difference array are within the tolerance
         self.assertEqual(retrace_step5_azmiuth_ifft.shape, self.original_step5_azmiuth_ifft.shape)

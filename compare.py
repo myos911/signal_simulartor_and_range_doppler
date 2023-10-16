@@ -4,8 +4,8 @@
 import pickle as pk
 import numpy as np
 
-file1 = './original_data/azimuth_filter4.pk'
-file2 = './retrace_data/azimuth_filter4.pk'
+file1 = './original_data/azimuth_ifft.pk'
+file2 = './optimised_data/azimuth_ifft.pk'
 
 
 # open the files
@@ -36,7 +36,6 @@ print('length: ', len(pk1))
 
 # print relative diff
 print('max relative diff: ', np.max(diff/(np.abs(pk1)+1E-16)))
-
 
 def mean_absolute_error(pk1, pk2):
     return np.mean(np.abs(pk1 - pk2))
