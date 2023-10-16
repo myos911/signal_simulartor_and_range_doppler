@@ -59,7 +59,7 @@ def az_filter_matrix_gpu(filter_matrix, t_range_axis, speed, lamb_c, B, prf, dop
         # false range
         frng = f_range_axis[rr]
         Ka = - 2 / lamb_c * speed ** 2 / rng
-        if linearfmapprox == True:
+        if linearfmappro:
             # uncomment one of the following:
             # -> filter with range bin phase removal
             # G = 2/B * np.sqrt(2 * np.abs(Ka)) * np.exp(- 1j * np.pi / 4) * np.exp(1j * 4 * np.pi * rng / lamb_c) \
@@ -253,7 +253,7 @@ def rcmc_cuda(range_doppler_matrix, range_doppler_matrix_rcmc, t_range_axis, Fs,
         range_doppler_matrix_rcmc[ll, rr] = point_r + 1j * point_i
 
 @cuda.jit
-def rcmc_cuda_optimizedY(range_doppler_matrix, range_doppler_matrix_rcmc, t_range_axis, Fs, prf, v_sat, cc, lamb_c, rate, doppler_axis):
+def rcmc_cuda_shared(range_doppler_matrix, range_doppler_matrix_rcmc, t_range_axis, Fs, prf, v_sat, cc, lamb_c, rate, doppler_axis):
     rr, ll = cuda.grid(2)
     tot_bins = range_doppler_matrix.shape[1]
     tot_lines = range_doppler_matrix.shape[0]
@@ -270,21 +270,23 @@ def rcmc_cuda_optimizedY(range_doppler_matrix, range_doppler_matrix_rcmc, t_rang
         # the closest fast time bin is
         t_idx = int(math.ceil(tm * Fs))
         # the interpolation will be performed using n bins
-        n_interp = 64
+        n_interp = 128
         point_r = 0
         point_i = 0
 
         
+        SLICE_SIZE = 32;
+
         # Allocate shared memory for range_doppler_matrix slices
-        shared_matrix = cuda.shared.array(shape=(32, 32), dtype=complex64)
+        shared_matrix = cuda.shared.array(shape=(SLICE_SIZE, SLICE_SIZE), dtype=complex64)
         
         for n in range(int(-n_interp / 2), int(n_interp / 2)):
             t_n = int((t_idx + n) % tot_bins)
-            if n < 32:
-                shared_matrix[ll % 32, t_n % 32] = range_doppler_matrix[ll, t_n]
+            if n < SLICE_SIZE:
+                shared_matrix[ll % SLICE_SIZE, t_n % SLICE_SIZE] = range_doppler_matrix[ll, t_n]
             cuda.syncthreads()
 
-            shared_value = shared_matrix[ll % 32, t_n % 32]
+            shared_value = shared_matrix[ll % SLICE_SIZE, t_n % SLICE_SIZE]
 
             sin_arg = math.sin(math.pi * Fs * (tm - t_n / Fs)) / (math.pi * Fs * (tm - t_n / Fs))
             point_r += shared_value.real * sin_arg
@@ -552,12 +554,10 @@ class RangeDopplerCompressor:
         blocks_per_grid_x = int(cp.ceil(doppler_range_compressed_matrix.shape[1] / threads_per_block[0]))
         blocks_per_grid_y = int(cp.ceil(doppler_range_compressed_matrix.shape[0] / threads_per_block[1]))
         blocks_per_grid = (blocks_per_grid_x, blocks_per_grid_y)
-        doppler_axis = cp.linspace(-self.radar.prf / 2,
-                                    (1 - 1 / len(doppler_range_compressed_matrix[:, 0])) * self.radar.prf / 2,
-                                    len(doppler_range_compressed_matrix[:, 0]))
+        doppler_axis = cp.linspace(-self.radar.prf / 2, (1 - 1 / len(doppler_range_compressed_matrix[:, 0])) * self.radar.prf / 2,len(doppler_range_compressed_matrix[:, 0]))
         foffset = cp.ceil(self.doppler_centroid / self.radar.prf) * self.radar.prf
         doppler_axis += foffset
-        # wrapped around freq axis
+
         doppler_axis_out = cp.where(doppler_axis > self.doppler_centroid + self.radar.prf / 2)
         if len(doppler_axis_out) != 0:
             doppler_axis[doppler_axis_out] -= self.radar.prf
@@ -566,7 +566,7 @@ class RangeDopplerCompressor:
             doppler_axis[doppler_axis_out] += self.radar.prf
         matrix_rcmc = 1j * cp.zeros((self.data.rows_num, self.data.columns_num))
 
-        rcmc_cuda[blocks_per_grid, threads_per_block](doppler_range_compressed_matrix,
+        rcmc_cuda_shared[blocks_per_grid, threads_per_block](doppler_range_compressed_matrix,
                            matrix_rcmc,
                            self.get_true_range_axis(),
                            self.Fs,
