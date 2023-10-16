@@ -1,3 +1,10 @@
+"""
+Authors: Matan Yosef and Jia Tee
+
+This file represents the GPU version of the chirp.py file. It uses CuPy rather than NumPy for array
+operations, and makes transfers as required.
+"""
+
 #  ____________________________Imports_____________________________
 import numba
 import numpy as np

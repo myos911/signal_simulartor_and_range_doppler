@@ -1,3 +1,10 @@
+"""
+Authors: Matan Yosef and Jia Tee
+
+This file represents the GPU version of the channel.py file. It uses CuPy rather than NumPy for array
+operations, and makes transfers as required.
+"""
+
 #  ____________________________imports_____________________________
 import os
 import tracemalloc
@@ -284,7 +291,7 @@ class ChannelGPU:
         # RETRACE STEP 1
         numpy_compdata = cp.asnumpy(compdata)
         # print(numpy_compdata)
-        with open('./retrace_data/matched_filter.pk', 'wb') as handle:
+        with open('./optimised_data/matched_filter.pk', 'wb') as handle:
             pk.dump(numpy_compdata, handle)
             handle.close()
     

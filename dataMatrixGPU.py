@@ -1,3 +1,10 @@
+"""
+Authors: Matan Yosef and Jia Tee
+
+This file represents the GPU version of the dataMatrix.py file. It uses CuPy rather than NumPy for array
+operations, and makes transfers as required.
+"""
+
 #  ____________________________imports_____________________________
 import os
 import traceback
