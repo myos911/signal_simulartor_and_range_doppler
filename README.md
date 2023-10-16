@@ -17,8 +17,9 @@ _*Note that `requirements.txt` was built using the_ `pip3.8 freeze` _command_.
 First, clone the repository, or open it from the project compendium folder. Then:
 
 1. Ensure that the folder `Simulation_Data` contains the file `data_dump.pk`. Please refer to `Simulation_Data/README.md` for instructions on how get this file.
+2. Ensure that the folder `Antenna_Pattern` contains the file `gain_pattern.pk`. Please refer to `Antenna_Pattern/README.md` for instructions on how get this file.
 
-2. From the terminal, you can run 
+3. From the terminal, you can run 
 
   ```
   python3.8 scriptedsympyr.py
