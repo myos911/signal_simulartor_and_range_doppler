@@ -15,5 +15,5 @@ GitHub does not allow files that are over a certain size. In order to populate t
 ## Using the Data
 This data is used in the assertions for `test_output.py`. It is used to compare against the dumps inside the `original_data` folder. To run this test, you can enter the following in the terminal (whilst in the repository root folder):
 ```
-python3.8 test-output.py
+python3.8 test_output.py
 ```
